@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Webcam Scan Tài liệu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://docs.opencv.org/4.5.5/opencv.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+<style>
+      #app {
+        height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr auto; /* Header tự co giãn, Content chiếm không gian còn lại, Footer tự co giãn */
+        grid-template-columns: 70% 30%;
+        padding: 0;
+        margin: 0;
+        max-width: 100%;
+      }
+      #header {
+        grid-row: 1;
+        grid-column: 1 / span 2;
+        text-align: center;
+        padding: 10px 0;
+      }
+      #camera-section {
+        grid-row: 2;
+        grid-column: 1;
+        min-height: 0; /* Cho phép co giãn */
+        padding: 10px;
+      }
+      #images-section {
+        grid-row: 2;
+        grid-column: 2;
+        min-height: 0; /* Cho phép co giãn */
+        padding: 10px;
+      }
+      #controls-section {
+        grid-row: 3;
+        grid-column: 1 / span 2;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        padding: 10px;
+        flex-wrap: wrap;
+      }
+#video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      
+      /* Responsive cho màn hình nhỏ */
+      @media (max-width: 768px) {
+        #app {
+          grid-template-columns: 100%;
+          grid-template-rows: auto 1fr 1fr auto;
+        }
+        #header {
+          grid-column: 1;
+        }
+        #camera-section {
+          grid-row: 2;
+          grid-column: 1;
+        }
+        #images-section {
+          grid-row: 3;
+          grid-column: 1;
+        }
+        #controls-section {
+          grid-row: 4;
+          grid-column: 1;
+        }
+      }
+    </style>
+</head>
+
+<body class="bg-gray-900 min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- Header -->
+        <header id="header" class="text-center">
+            <h1 class="text-3xl font-bold text-white mb-2">
+                <i class="fas fa-camera mr-2"></i>Webcam Scan Tài liệu
+            </h1>
+            <p class="text-gray-400 text-sm">Chụp ảnh tài liệu và tạo PDF</p>
+        </header>
+
+        <!-- Main Content - Camera Left, Images Right -->
+        <!-- New Layout Structure -->
+        <div class="flex flex-col h-screen">
+            <!-- Row 1: Camera + Image List -->
+            <div class="flex flex-1 overflow-hidden" style="height: 80vh;">
+                <!-- Thẻ 1: Camera (80% width) -->
+                <div class="w-4/5 h-full bg-gray-800 p-4">
+                    <h2 class="text-lg font-semibold text-white mb-3">
+                        <i class="fas fa-video mr-2"></i>Camera
+                    </h2>
+                    <div class="relative h-[calc(100%-50px)] rounded-lg overflow-hidden bg-black">
+                        <!-- Video Element (full container) -->
+                        <video id="video" class="w-full h-full object-contain" autoplay playsinline
+                            style="transform: scale(1);"></video>
+
+                        <!-- Flash Effect -->
+                        <div id="flash"
+                            class="absolute inset-0 bg-white opacity-0 pointer-events-none transition-opacity duration-150">
+                        </div>
+
+                        <!-- A4 Frame Overlay -->
+                        <!-- <div id="a4-frame" class="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div class="a4-outline">
+                        <div class="corner corner-tl"></div>
+                        <div class="corner corner-tr"></div>
+                        <div class="corner corner-bl"></div>
+                        <div class="corner corner-br"></div>
+                        <div class="a4-label">A4</div>
+                    </div>
+                </div> -->
+
+                        <!-- Camera Not Found Message -->
+                        <div id="camera-error"
+                            class="hidden absolute inset-0 flex items-center justify-center bg-gray-900">
+                            <div class="text-center text-gray-400 p-4">
+                                <i class="fas fa-video-slash text-5xl mb-4"></i>
+                                <p class="text-lg">Không tìm thấy camera</p>
+                                <p class="text-sm mt-2">Vui lòng cấp quyền truy cập camera</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thẻ 2: Danh sách ảnh (20% width) -->
+                <div class="w-1/5 h-full bg-gray-800 p-4 overflow-y-auto">
+                    <h2 class="text-lg font-semibold text-white mb-3">
+                        <i class="fas fa-images mr-2"></i>Ảnh đã chụp
+                        <span id="image-count" class="text-sm text-gray-400 ml-2">(0)</span>
+                    </h2>
+                    <div id="image-list" class="space-y-2">
+                        <div id="empty-message" class="text-center py-8 text-gray-500">
+                            <i class="fas fa-camera-retro text-3xl mb-3 opacity-50"></i>
+                            <p class="text-sm">Chưa có ảnh nào</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thẻ 3: Nút chức năng (100% width, 20% height) -->
+            <div class="bg-gray-800 p-4" style="height: 20vh;">
+                <div class="flex justify-center items-center h-full gap-4">
+                    <button id="capture-btn"
+                        class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2">
+                        <i class="fas fa-camera"></i>
+                        <span>Chụp ảnh</span>
+                    </button>
+                    <button id="reset-btn"
+                        class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg transition-colors flex items-center gap-2">
+                        <i class="fas fa-trash-alt"></i>
+                        <span>Xóa tất cả</span>
+                    </button>
+                    <button id="pdf-btn"
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-file-pdf"></i>
+                        <span>Lấy số thứ tự</span>
+                    </button>
+                    
+                        <select title="serviceID" style=" height: 40px; font-size: 15px; color: #000; background-color: #fff;" id="service-select" class="combo-box">
+                            <option value="#">Chọn dịch vụ </option>
+                            <option value="1">Kinh tế - Xã hội</option>
+                            <option value="2">Tư pháp - Hộ tịch</option>
+                            <option value="3">Địa chính - Xây dựng</option>
+                            <option value="4">Văn hóa - Thông tin</option>
+                            <option value="5">Kế toán - Tài chính</option>
+                            <option value="6">Giáo dục - Y tế</option>
+                        </select>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay"
+        class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center">
+        <div class="bg-gray-800 rounded-2xl p-8 text-center shadow-2xl">
+            <div class="relative w-20 h-20 mx-auto mb-4">
+                <div class="absolute inset-0 border-4 border-blue-500/30 rounded-full"></div>
+                <div class="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin">
+                </div>
+            </div>
+            <p class="text-white text-lg font-medium">Đang tạo PDF...</p>
+            <p class="text-gray-400 text-sm mt-2">Vui lòng chờ trong giây lát</p>
+        </div>
+    </div>
+
+    <!-- Lightbox Modal -->
+    <div id="lightbox" class="fixed inset-0 bg-black/95 z-50 hidden">
+        <!-- Close Button -->
+        <button id="lightbox-close"
+            class="absolute top-4 right-4 z-10 w-12 h-12 bg-gray-800/50 hover:bg-gray-700 rounded-full flex items-center justify-center text-white text-xl transition-colors">
+            <i class="fas fa-times"></i>
+        </button>
+
+        <!-- Navigation Buttons -->
+        <button id="lightbox-prev"
+            class="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-gray-800/50 hover:bg-gray-700 rounded-full flex items-center justify-center text-white text-xl transition-colors hidden">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+        <button id="lightbox-next"
+            class="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-gray-800/50 hover:bg-gray-700 rounded-full flex items-center justify-center text-white text-xl transition-colors hidden">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+
+        <!-- Image Container -->
+        <div id="lightbox-content" class="w-full h-full flex items-center justify-center p-4">
+            <img id="lightbox-image" src="" alt="Xem ảnh" class="max-w-full max-h-full object-contain select-none">
+        </div>
+
+        <!-- Image Info -->
+        <div id="lightbox-info"
+            class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-900/80 px-4 py-2 rounded-full text-white text-sm">
+            <span id="lightbox-counter">1 / 1</span>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[60] space-y-2"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/models/ImageModel.js"></script>
+    <script src="js/components/Camera.js"></script>
+    <script src="js/components/Capture.js"></script>
+    <script src="js/components/ImageList.js"></script>
+    <script src="js/components/Lightbox.js"></script>
+    <script src="js/components/Toast.js"></script>
+    <script src="js/components/Api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

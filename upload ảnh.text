@@ -1,0 +1,6 @@
+- người dùng nhấn nút "Lấy số thứ tự" -> if( có ảnh và có giá trị value) -> upload ảnh và data-service-id="value" cho backend  -> backend lấy giá trị value để gán vào serviceId và tên file pdf gán vào filePdf trong hàm gửi request lên API
+                                      |--> if( có ảnh và không có giá trị value) -> lỗi không upload ảnh và data-service-id="value" cho backend -> hiện thị trên màn hình thông báo xin vui lòng chọn dịch vụ
+                                      |--> if( không có ảnh và có giá trị value) -> lỗi không upload ảnh và data-service-id="value" cho backend -> hiện thị trên màn hình thông báo xin vui lòng tải ảnh lên
+                                      |--> if( không có ảnh và không có giá trị value) -> lỗi không upload ảnh và data-service-id="value" cho backend -> hiện thị trên màn hình thông báo xin vui lòng tải ảnh lên và chọn dịch vụ
+
+- backend lấy thêm tên file pdf và giá trị value nhập vào hàm sử request API

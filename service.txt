@@ -1,0 +1,7 @@
+serviceId       |    serviceName
+1               | Kinh tế - Xã hội
+2               | Tư pháp - Hộ tịch
+3               | Địa chính - Xây dựng
+4               | Văn hóa - Thông tin
+5               | Kế toán - Tài chính
+6               | Giáo dục - Y tế

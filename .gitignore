@@ -1,0 +1,41 @@
+# Image folders
+backend/uploads/
+frontend/uploads/
+
+# PDF folders
+backend/pdfs/
+frontend/pdfs/
+
+# Image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+
+# PDF files
+*.pdf
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environment
+venv/
+env/
+.env/
+
+# Build artifacts
+build/
+dist/
+*.spec
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -1,0 +1,128 @@
+/**
+Camera Component - Handles camera initialization and management
+*/
+class Camera {
+    constructor(elements) {
+        this.elements = elements;
+        this.stream = null;
+    }
+
+    async init() {
+        try {
+            const constraints = {
+                video: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 4608 },
+                    height: { ideal: 3456 },
+                    // Yêu cầu góc nhìn rộng nhất
+                    advanced: [
+                        { focusMode: 'continuous' },  // Tự động chỉnh tiêu cự liên tục
+                        { focusDistance: { min: 0, max: 1 } }  // Cho phép điều chỉnh khoảng cách
+                    ]
+                },
+                audio: false
+            };
+
+            this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+            // Khởi tạo camera không cần phát hiện tài liệu
+            state.stream = this.stream;
+            this.elements.video.srcObject = this.stream;
+
+            this.elements.video.onloadedmetadata = () => {
+                // Xoay video 90 độ để khớp với hướng đặt camera
+                this.elements.video.style.transform = 'rotate(-90deg)';
+                
+                // Cấu hình để video lấp đầy khung camera
+                this.elements.video.style.width = '100%';
+                this.elements.video.style.height = '100%';
+                this.elements.video.style.objectFit = 'contain'; // Thay 'container' bằng 'cover' để lấp đầy
+                
+                // Tăng độ sáng cho video (1.2 là 120% độ sáng, có thể điều chỉnh)
+                this.elements.video.style.filter = 'brightness(1.1) contrast(1.1)';
+
+                this.elements.video.play();
+                
+                // Check camera capabilities after initialization
+                this.checkCameraCapabilities();
+            };
+
+            window.App?.toast?.show('Camera đã sẵn sàng', 'success');
+            return true;
+        } catch (error) {
+            console.error('Camera error:', error);
+            this.elements.cameraError.classList.remove('hidden');
+            this.elements.video.classList.add('hidden');
+                this.elements.video.style.transform = '';
+            window.App?.toast?.show('Không thể truy cập camera. Vui lòng cấp quyền.', 'error');
+            return false;
+        }
+    }
+
+    getVideoElement() {
+        return this.elements.video;
+    }
+
+    isReady() {
+        return this.elements.video.videoWidth > 0 && this.elements.video.videoHeight > 0;
+    }
+
+    stop() {
+        if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
+            this.stream = null;
+        }
+    }
+
+    // Hàm này không còn cần thiết cho việc chụp chính vì đã xử lý trong Capture.js
+    // async captureFullFrame() {
+    //     // Deprecated in favor of Capture.js logic
+    // }
+
+    startDocumentDetection() {
+        // Empty function to maintain compatibility
+    }
+
+    checkCameraCapabilities() {
+        const track = this.stream?.getVideoTracks()[0];
+        if (!track) return;
+        const capabilities = track.getCapabilities();
+        this.hasFocusControl = 'focusMode' in capabilities || 'focusDistance' in capabilities;
+
+        if (this.hasFocusControl) {
+            console.log('Camera supports focus control:', capabilities);
+        }
+    }
+
+    /**
+     * Set camera focus mode and distance
+     * @param {string} mode - 'manual', 'continuous', or 'single-shot'
+     * @param {number} [distance] - Focus distance (0-1)
+     */
+    setFocus(mode, distance) {
+        const track = this.stream?.getVideoTracks()[0];
+        if (!track || !this.hasFocusControl) return false;
+
+        try {
+            const constraints = {};
+
+            if ('focusMode' in track.getCapabilities()) {
+                constraints.focusMode = mode;
+            }
+
+            if (distance !== undefined && 'focusDistance' in track.getCapabilities()) {
+                constraints.focusDistance = distance;
+            }
+
+            return track.applyConstraints({ advanced: [constraints] });
+        } catch (error) {
+            console.error('Failed to set focus:', error);
+            return false;
+        }
+    }
+
+    triggerFocus() {
+        return this.setFocus('continuous');
+    }
+}
+// Export for global use
+window.Camera = Camera;

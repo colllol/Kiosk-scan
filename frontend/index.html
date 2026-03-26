@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- QUAN TRỌNG: Thêm các meta tags này -->
+    <meta name="referrer" content="no-referrer-when-downgrade">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: http: data: blob: 'unsafe-inline' 'unsafe-eval'; 
+                   frame-src 'self' https: http: www.youtube.com www.youtube-nocookie.com player.vimeo.com; 
+                   media-src 'self' https: http: data: blob:;">
+    <title>Webcam Scan Tài liệu</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        /* Video section - 30% chiều cao */
+        .video-section {
+            height: 30vh;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .video-section iframe,
+        .video-section video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Features section - 70% chiều cao */
+        .features-section {
+            height: 70vh;
+            background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)),
+                        url('http://localhost:5000/static/background.jpg') center/cover no-repeat;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #1a1a1a;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            flex: 1;
+            align-content: center;
+        }
+
+        .feature-card {
+            background: white;
+            border: 2px solid #2196F3;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            min-height: 150px;
+        }
+
+        .feature-card:hover {
+            background: #2196F3;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+
+        .feature-card:hover .feature-icon {
+            background: white;
+        }
+
+        .feature-icon {
+            width: 64px;
+            height: 64px;
+            background: #2196F3;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card h3 {
+            font-size: clamp(16px, 2vw, 20px);
+            font-weight: 600;
+        }
+
+        .feature-card p {
+            color: #666;
+            font-size: clamp(12px, 1.5vw, 14px);
+        }
+
+        .feature-card:hover p {
+            color: #e0e0e0;
+        }
+
+        .external-link::after {
+            content: ' ↗';
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+                gap: 10px;
+            }
+
+            .video-section {
+                height: 25vh;
+            }
+
+            .features-section {
+                height: 75vh;
+                padding: 15px;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .feature-card {
+                padding: 20px;
+                min-height: 120px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Video Section - 30% -->
+        <div class="video-section">
+            <video id="local-video" width="100%" height="30%" controls playsinline>
+                <source src="C:\Users\tu141\Downloads\Hướng-dẫn-đăng-nhập-Cổng-Dịch-vụ-công.mp4" type="video/mp4">
+                Trình duyệt của bạn không hỗ trợ thẻ video.
+            </video>
+        </div>
+
+        <!-- Features Section - 70% -->
+        <div class="features-section">
+            <div class="section-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                Chức năng
+            </div>
+
+            <div class="features-grid">
+                <a href="#" class="feature-card" data-service-id="1" data-service-name="Kinh tế - Xã hội">
+                    <div class="feature-icon">📊</div>
+                    <h3>Lấy số thứ tự</h3>
+                    <p>Kinh tế - Xã hội</p>
+                </a>
+
+                <a href="#" class="feature-card" data-service-id="2" data-service-name="Tư pháp - Hộ tịch">
+                    <div class="feature-icon">⚖️</div>
+                    <h3>Lấy số thứ tự</h3>
+                    <p>Tư pháp - Hộ tịch</p>
+                </a>
+
+                <a href="#" class="feature-card" data-service-id="3" data-service-name="Địa chính - Xây dựng">
+                    <div class="feature-icon">🏗️</div>
+                    <h3>Lấy số thứ tự</h3>
+                    <p>Địa chính - Xây dựng</p>
+                </a>
+
+                <a href="#" class="feature-card" data-service-id="4" data-service-name="Văn hóa - Thông tin">
+                    <div class="feature-icon">🎭</div>
+                    <h3>Lấy số thứ tự</h3>
+                    <p>Văn hóa - Thông tin</p>
+                </a>
+
+                <a href="#" class="feature-card" data-service-id="5" data-service-name="Kế toán - Tài chính">
+                    <div class="feature-icon">💰</div>
+                    <h3>Lấy số thứ tự</h3>
+                    <p>Kế toán - Tài chính</p>
+                </a>
+
+                <a href="#" class="feature-card" data-service-id="6" data-service-name="Giáo dục - Y tế">
+                    <div class="feature-icon">⚕️</div>
+                    <h3>Lấy số thứ tự</h3>
+                    <p>Giáo dục - Y tế</p>
+                </a>
+
+                <a href="index1.html" class="feature-card">
+                    <div class="feature-icon">📄</div>
+                    <h3>Quét tài liệu</h3>
+                    <p>Bấm để bắt đầu</p>
+                </a>
+
+                <a href="https://dichvucong.gov.vn/" class="feature-card external-link" target="_blank"
+                    rel="noopener noreferrer">
+                    <div class="feature-icon">🌐</div>
+                    <h3>Dịch vụ công</h3>
+                    <p>Truy cập ngay</p>
+                </a>
+
+
+
+            </div>
+        </div>
+
+        <script>
+            // Tự động điều chỉnh kích thước khi resize window
+            window.addEventListener('resize', function () {
+                // Code xử lý khi resize nếu cần
+            });
+
+            // Handle ticket button clicks
+            document.querySelectorAll('.feature-card[data-service-id]').forEach(card => {
+                card.addEventListener('click', async function (e) {
+                    e.preventDefault();
+
+                    const serviceId = this.dataset.serviceId;
+                    const serviceName = this.dataset.serviceName;
+
+                    try {
+                        const response = await fetch('http://localhost:5000/api/ticket', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                serviceId: parseInt(serviceId),
+                                serviceName: serviceName
+                            })
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            alert(`Số thứ tự của bạn: ${data.ticketNumber}\nDịch vụ: ${serviceName}`);
+                        } else {
+                            const error = await response.json();
+                            alert(`Lỗi: ${error.message || 'Không thể lấy số thứ tự'}`);
+                        }
+                    } catch (error) {
+                        alert(`Lỗi kết nối: ${error.message}`);
+                    }
+                });
+            });
+        </script>
+</body>
+
+</html>
