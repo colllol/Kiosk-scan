@@ -266,10 +266,14 @@ def get_latest_ticket_from_list(listpdfs_path: str):
     return best_stt, best_filename
 
 
-def send_ticket_to_api(stt: int, serviceId: int = 1, counterId: int = 1, pdf_filename: str = ""):
+def send_ticket_to_api(stt: int, serviceId: int = 1, counterId: int = 1, pdf_filename: str = "", ticket_only: bool = False):
     """
     Gửi số thứ tự lên API QueueSystem
     API: http://192.168.100.238/QueueSystemAdmin/api/ticket/create
+    
+    Args:
+        ticket_only: Nếu True, filePdf sẽ là khoảng trắng (cho chức năng lấy số từ index.html)
+                     Nếu False, filePdf sẽ là tên file PDF (cho chức năng quét từ index1.html)
     """
     api_url = "http://192.168.100.238/QueueSystemAdmin/api/ticket/create"
 
@@ -277,8 +281,11 @@ def send_ticket_to_api(stt: int, serviceId: int = 1, counterId: int = 1, pdf_fil
         # Format số thứ tự thành 4 chữ số (0001, 0002, ...)
         formatted_stt = f"{stt:04d}"
 
+        # Nếu ticket_only=True, filePdf sẽ là khoảng trắng
+        file_pdf_value = " " if ticket_only else pdf_filename
+
         # Gửi request lên API
-        print(f"[API] Sending to {api_url}: ticketNumber={formatted_stt}, serviceId={serviceId}, counterId={counterId}, filePdf={pdf_filename}")
+        print(f"[API] Sending to {api_url}: ticketNumber={formatted_stt}, serviceId={serviceId}, counterId={counterId}, filePdf={file_pdf_value}")
 
         response = requests.post(
             api_url,
@@ -286,7 +293,7 @@ def send_ticket_to_api(stt: int, serviceId: int = 1, counterId: int = 1, pdf_fil
                 "ticketNumber": formatted_stt,
                 "serviceId": serviceId,
                 "counterId": counterId,
-                "filePdf": pdf_filename
+                "filePdf": file_pdf_value
             },
             headers={"Content-Type": "application/json"},
             timeout=10
@@ -577,10 +584,10 @@ async def export_pdf(request: ExportRequest, background_tasks: BackgroundTasks):
         listpdfs_path = get_or_create_listpdfs(pdf_filename)
         latest_stt = log_pdf_to_list(pdf_filename, listpdfs_path, request.serviceId, request.serviceName)
 
-        # Gửi số thứ tự lên API QueueSystem với serviceId và pdf_filename
+        # Gửi số thứ tự lên API QueueSystem với serviceId và pdf_filename (ticket_only=False)
         service_id = request.serviceId or 1
         if latest_stt is not None:
-            background_tasks.add_task(send_ticket_to_api, latest_stt, service_id, 1, pdf_filename)
+            background_tasks.add_task(send_ticket_to_api, latest_stt, service_id, 1, pdf_filename, False)
 
         # Lấy STT lớn nhất mới nhất trong listpdfs để in phiếu
         latest_stt_print, latest_filename = get_latest_ticket_from_list(listpdfs_path)
@@ -649,9 +656,9 @@ async def create_ticket(request: TicketRequest, background_tasks: BackgroundTask
         if latest_stt is None:
             raise HTTPException(status_code=500, detail="Không thể tạo số thứ tự")
 
-        # Gửi số thứ tự lên API QueueSystem với serviceId và pdf_filename
+        # Gửi số thứ tự lên API QueueSystem với serviceId và filePdf = " " (ticket_only=True)
         if latest_stt is not None:
-            success = send_ticket_to_api(latest_stt, serviceId=request.serviceId, pdf_filename=pdf_filename)
+            success = send_ticket_to_api(latest_stt, serviceId=request.serviceId, pdf_filename=pdf_filename, ticket_only=True)
             if not success:
                 print(f"[WARNING] Failed to send ticket to QueueSystem")
 
@@ -659,16 +666,16 @@ async def create_ticket(request: TicketRequest, background_tasks: BackgroundTask
         dt = parse_datetime_from_pdf_filename(pdf_filename)
         if latest_stt is not None:
             run_print_ticket(latest_stt, dt, request.serviceName or "HỘ TỊCH - CHỨNG THỰC")
-        
+
         # Format số thứ tự thành 4 chữ số
         formatted_stt = f"{latest_stt:04d}"
-        
+
         return {
             "ticketNumber": formatted_stt,
             "serviceId": request.serviceId,
             "serviceName": request.serviceName or f"Dịch vụ {request.serviceId}"
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:

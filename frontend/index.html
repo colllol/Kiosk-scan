@@ -193,41 +193,41 @@
             </div>
 
             <div class="features-grid">
-                <a href="#" class="feature-card" data-service-id="1" data-service-name="Kinh tế - Xã hội">
+                <div class="feature-card" data-service-id="1" data-service-name="Kinh tế - Xã hội">
                     <div class="feature-icon">📊</div>
                     <h3>Lấy số thứ tự</h3>
                     <p>Kinh tế - Xã hội</p>
-                </a>
+                </div>
 
-                <a href="#" class="feature-card" data-service-id="2" data-service-name="Tư pháp - Hộ tịch">
+                <div class="feature-card" data-service-id="2" data-service-name="Tư pháp - Hộ tịch">
                     <div class="feature-icon">⚖️</div>
                     <h3>Lấy số thứ tự</h3>
                     <p>Tư pháp - Hộ tịch</p>
-                </a>
+                </div>
 
-                <a href="#" class="feature-card" data-service-id="3" data-service-name="Địa chính - Xây dựng">
+                <div class="feature-card" data-service-id="3" data-service-name="Địa chính - Xây dựng">
                     <div class="feature-icon">🏗️</div>
                     <h3>Lấy số thứ tự</h3>
                     <p>Địa chính - Xây dựng</p>
-                </a>
+                </div>
 
-                <a href="#" class="feature-card" data-service-id="4" data-service-name="Văn hóa - Thông tin">
+                <div class="feature-card" data-service-id="4" data-service-name="Văn hóa - Thông tin">
                     <div class="feature-icon">🎭</div>
                     <h3>Lấy số thứ tự</h3>
                     <p>Văn hóa - Thông tin</p>
-                </a>
+                </div>
 
-                <a href="#" class="feature-card" data-service-id="5" data-service-name="Kế toán - Tài chính">
+                <div class="feature-card" data-service-id="5" data-service-name="Kế toán - Tài chính">
                     <div class="feature-icon">💰</div>
                     <h3>Lấy số thứ tự</h3>
                     <p>Kế toán - Tài chính</p>
-                </a>
+                </div>
 
-                <a href="#" class="feature-card" data-service-id="6" data-service-name="Giáo dục - Y tế">
+                <div class="feature-card" data-service-id="6" data-service-name="Giáo dục - Y tế">
                     <div class="feature-icon">⚕️</div>
                     <h3>Lấy số thứ tự</h3>
                     <p>Giáo dục - Y tế</p>
-                </a>
+                </div>
 
                 <a href="index1.html" class="feature-card">
                     <div class="feature-icon">📄</div>
@@ -255,9 +255,7 @@
 
             // Handle ticket button clicks
             document.querySelectorAll('.feature-card[data-service-id]').forEach(card => {
-                card.addEventListener('click', async function (e) {
-                    e.preventDefault();
-
+                card.addEventListener('click', async function () {
                     const serviceId = this.dataset.serviceId;
                     const serviceName = this.dataset.serviceName;
 
