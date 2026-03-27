@@ -14,6 +14,7 @@ from PIL import Image, ImageEnhance, ImageFilter
 
 # Lazy load OpenCV - only import when actually needed
 CV2_AVAILABLE = False
+_clahe_cache = None  # Cache CLAHE object to avoid recreating
 
 def _load_cv2():
     """Lazy load OpenCV to improve startup time"""
@@ -38,21 +39,22 @@ def process_scanned_image(image):
         return process_with_opencv(image)
     else:
         return process_with_pillow(image)
-    
+
 def process_with_opencv(pil_image):
     """
     Xử lý ảnh dùng OpenCV - phương pháp nâng cao
+    Tối ưu: Cache CLAHE, giảm split/merge, gộp operations
     """
     try:
         # Convert PIL to OpenCV format
         cv_image = pil_to_cv2(pil_image)
-        
+
         # Process document
         processed = process_document(cv_image)
-        
+
         # Convert back to PIL
         return cv2_to_pil(processed)
-    
+
     except Exception as e:
         print(f"OpenCV processing error: {e}")
         return process_with_pillow(pil_image)
@@ -61,7 +63,7 @@ def process_with_opencv(pil_image):
 def process_document(image):
     """
     Main pipeline: Process image for PDF output
-    Tăng 15% độ sáng, giữ nguyên chất lượng ảnh gốc
+    Tối ưu: Giảm bước chuyển đổi, gộp operations, cache CLAHE
     """
     try:
         # Step 1: Apply slight Gaussian blur to reduce noise
@@ -71,25 +73,25 @@ def process_document(image):
         alpha = 1.0  # Mild sharpening
         sharpened = cv2.addWeighted(image, 1 + alpha, blurred, -alpha, 0)
 
-        # Step 3: Convert to LAB color space for better processing
+        # Step 3: Convert to LAB color space
         lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
-        l, a, b = cv2.split(lab)
+        
+        # Step 4: Apply CLAHE trực tiếp trên kênh L (không cần tách/gộp kênh)
+        global _clahe_cache
+        if _clahe_cache is None:
+            _clahe_cache = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
+        clahe = _clahe_cache
+        
+        # Xử lý trực tiếp trên kênh L (index 0)
+        l_channel = lab[:, :, 0]
+        l_enhanced = clahe.apply(l_channel)
+        lab[:, :, 0] = l_enhanced  # Gán trực tiếp, không cần merge
 
-        # Step 4: Apply mild CLAHE for slight contrast enhancement
-        clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
-        cl = clahe.apply(l)
+        # Step 5: Convert back to BGR
+        enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
-        # Step 5: Merge channels back
-        merged = cv2.merge((cl, a, b))
-
-        # Step 6: Convert back to BGR
-        enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
-
-        # Step 7: Tăng 15% độ sáng
-        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.25, beta=0)
-
-        # Step 8: Tăng nhẹ contrast (5%)
-        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.15, beta=0)
+        # Step 6: Gộp 2 bước tăng sáng + contrast thành 1 (alpha = 1.25 * 1.15 = 1.4375)
+        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.4375, beta=0)
 
         return enhanced
     except Exception as e:

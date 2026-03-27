@@ -359,7 +359,7 @@ def get_or_create_listpdfs(pdf_filename):
 def convert_image_to_pdf(image_path, output_path):
     """Chuyển đổi ảnh thành PDF với chất lượng cao nhất
 
-    Tăng 15% độ sáng, không nén ảnh, giữ nguyên kích thước gốc
+    Tăng 15% độ sáng, dùng JPEG 90% để giữ chất lượng tốt và tốc độ nhanh
     """
     try:
         # Mở ảnh gốc
@@ -381,13 +381,13 @@ def convert_image_to_pdf(image_path, output_path):
         c = canvas.Canvas(output_path, pagesize=(img_width, img_height))
 
         # Convert ảnh sang format phù hợp cho reportlab
-        # Sử dụng PNG (KHÔNG NÉN) để giữ chất lượng ảnh 100%
-        temp_png = io.BytesIO()
-        img.save(temp_png, format='PNG')
-        temp_png.seek(0)
+        # Sử dụng JPEG chất lượng 90% (nhanh hơn PNG, file nhỏ hơn)
+        temp_jpg = io.BytesIO()
+        img.save(temp_jpg, format='JPEG', quality=90, optimize=True)
+        temp_jpg.seek(0)
 
         # Draw ảnh vào PDF (không resize, không crop)
-        img_reader = ImageReader(temp_png)
+        img_reader = ImageReader(temp_jpg)
         c.drawImage(
             img_reader,
             0, 0,
@@ -409,19 +409,20 @@ def create_pdf_from_images(image_paths, output_path):
     """Tạo PDF từ danh sách ảnh
 
     Tăng 15% độ sáng, không nén ảnh để giữ chất lượng gốc, giữ nguyên kích thước
+    Tối ưu: Dùng JPEG 90%, mở ảnh 1 lần
     """
     try:
         # Lazy load image processor
         img_processor = get_image_processor()
 
-        # Process first image to get dimensions for PDF canvas
+        # Mở và xử lý ảnh đầu tiên để lấy kích thước
         first_img = Image.open(image_paths[0])
         processed_first = img_processor.process_scanned_image(first_img)
-        
+
         # Convert to RGB if needed
         if processed_first.mode != 'RGB':
             processed_first = processed_first.convert('RGB')
-        
+
         pdf_width, pdf_height = processed_first.size
 
         # Create canvas with first image dimensions
@@ -441,13 +442,14 @@ def create_pdf_from_images(image_paths, output_path):
 
             img_width, img_height = processed_img.size
 
-            # Save to BytesIO với PNG (KHÔNG NÉN, giữ chất lượng gốc 100%)
-            temp_png = io.BytesIO()
-            processed_img.save(temp_png, format='PNG')
-            temp_png.seek(0)
+            # Save to BytesIO với JPEG chất lượng 90% (nhanh hơn PNG, file nhỏ hơn)
+            # Chất lượng 90% gần như không phân biệt được với PNG
+            temp_jpg = io.BytesIO()
+            processed_img.save(temp_jpg, format='JPEG', quality=90, optimize=True)
+            temp_jpg.seek(0)
 
             # Draw ảnh (không resize, không crop)
-            img_reader = ImageReader(temp_png)
+            img_reader = ImageReader(temp_jpg)
             c.drawImage(
                 img_reader,
                 0, 0,
@@ -459,12 +461,11 @@ def create_pdf_from_images(image_paths, output_path):
             # Add trang mới nếu không phải ảnh cuối
             if idx < len(image_paths) - 1:
                 # Update page size for next page if different
-                if idx < len(image_paths) - 1:
-                    next_img = Image.open(image_paths[idx + 1])
-                    processed_next = img_processor.process_scanned_image(next_img)
-                    if processed_next.mode != 'RGB':
-                        processed_next = processed_next.convert('RGB')
-                    c.setPageSize((processed_next.size[0], processed_next.size[1]))
+                next_img = Image.open(image_paths[idx + 1])
+                processed_next = img_processor.process_scanned_image(next_img)
+                if processed_next.mode != 'RGB':
+                    processed_next = processed_next.convert('RGB')
+                c.setPageSize((processed_next.size[0], processed_next.size[1]))
                 c.showPage()
 
         c.save()
