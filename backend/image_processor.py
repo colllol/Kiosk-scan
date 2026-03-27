@@ -29,6 +29,62 @@ def _load_cv2():
     return CV2_AVAILABLE
 
 
+def process_scanned_images_batch(image_list):
+    """
+    Xử lý batch nhiều ảnh song song
+    Args:
+        image_list: List các ảnh PIL
+    Returns:
+        List các ảnh đã xử lý
+    """
+    import time
+    start_time = time.time()
+    print(f"[IMG] Starting batch processing of {len(image_list)} image(s)...")
+    
+    # OPTION 1: Xử lý song song (có thể chậm với GIL)
+    # OPTION 2: Xử lý tuần tự (nhanh hơn với GIL)
+    USE_PARALLEL = False  # Set True để test song song
+    
+    if USE_PARALLEL:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        results = [None] * len(image_list)
+
+        def process_single(args):
+            idx, img = args
+            img_start = time.time()
+            result = process_scanned_image(img)
+            print(f"[IMG] Processed image {idx} in {time.time() - img_start:.3f}s")
+            return idx, result
+
+        # Giảm worker xuống 4 để test
+        max_workers = 4
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(process_single, (i, img)): i 
+                       for i, img in enumerate(image_list)}
+
+            for future in as_completed(futures):
+                try:
+                    idx, processed_img = future.result()
+                    results[idx] = processed_img
+                except Exception as e:
+                    print(f"Error processing image {futures[future]}: {e}")
+                    # Fallback to original image
+                    results[futures[future]] = image_list[futures[future]]
+    else:
+        # Xử lý tuần tự - có thể nhanh hơn với GIL
+        results = []
+        for i, img in enumerate(image_list):
+            img_start = time.time()
+            result = process_scanned_image(img)
+            print(f"[IMG] Processed image {i} in {time.time() - img_start:.3f}s")
+            results.append(result)
+
+    print(f"[IMG] Batch processing completed in {time.time() - start_time:.3f}s\n")
+    return results
+
+
 def process_scanned_image(image):
     """
     Xử lý ảnh thành dạng scan tài liệu đen trắng

@@ -6,7 +6,8 @@ class Api {
         this.imageStore = imageStore;
         this.elements = elements;
         this.documentIds = [];
-        this.MAX_PARALLEL_UPLOADS = 5; // Increased parallel uploads
+        // OPTIMIZATION 3: Tăng parallel uploads từ 5 → 10 để tận dụng bandwidth
+        this.MAX_PARALLEL_UPLOADS = 10;
     }
 
     /**
@@ -47,7 +48,8 @@ class Api {
 
     async uploadImage(imageModel) {
         const formData = new FormData();
-        formData.append('file', imageModel.blob, `img_${Date.now()}.jpg`);
+        // Gửi PNG lossless thay vì JPEG để giữ chất lượng 100%
+        formData.append('file', imageModel.blob, `img_${Date.now()}.png`);
 
         try {
             const response = await fetch(CONFIG.API_UPLOAD, {

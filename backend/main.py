@@ -26,6 +26,7 @@ from print_ticket import print_ticket
 from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+import numpy as np
 
 # Lazy import image processing module
 import importlib
@@ -409,17 +410,28 @@ def create_pdf_from_images(image_paths, output_path):
     """Tạo PDF từ danh sách ảnh
 
     Tăng 15% độ sáng, không nén ảnh để giữ chất lượng gốc, giữ nguyên kích thước
-    Tối ưu: Dùng JPEG 90%, mở ảnh 1 lần
+    Tối ưu: Batch processing, dùng JPEG 90%
     """
+    import time
+    start_time = time.time()
+    print(f"\n[PDF] Starting PDF creation with {len(image_paths)} image(s)...")
+    
     try:
         # Lazy load image processor
         img_processor = get_image_processor()
+        
+        step_start = time.time()
+        # Mở tất cả ảnh trước (mở 1 lần, dùng nhiều lần)
+        pil_images = [Image.open(path) for path in image_paths]
+        print(f"[PDF] Step 1 - Opened {len(pil_images)} images in {time.time() - step_start:.3f}s")
 
-        # Mở và xử lý ảnh đầu tiên để lấy kích thước
-        first_img = Image.open(image_paths[0])
-        processed_first = img_processor.process_scanned_image(first_img)
+        step_start = time.time()
+        # Xử lý batch song song
+        processed_images = img_processor.process_scanned_images_batch(pil_images)
+        print(f"[PDF] Step 2 - Batch processed images in {time.time() - step_start:.3f}s")
 
-        # Convert to RGB if needed
+        # Lấy kích thước từ ảnh đầu tiên
+        processed_first = processed_images[0]
         if processed_first.mode != 'RGB':
             processed_first = processed_first.convert('RGB')
 
@@ -428,14 +440,8 @@ def create_pdf_from_images(image_paths, output_path):
         # Create canvas with first image dimensions
         c = canvas.Canvas(output_path, pagesize=(pdf_width, pdf_height))
 
-        for idx, image_path in enumerate(image_paths):
-            # Mở ảnh gốc
-            img = Image.open(image_path)
-
-            # Xử lý ảnh thành dạng scan
-            # Tăng 15% độ sáng, giữ nguyên chất lượng
-            processed_img = img_processor.process_scanned_image(img)
-
+        step_start = time.time()
+        for idx, processed_img in enumerate(processed_images):
             # Convert to RGB if needed
             if processed_img.mode != 'RGB':
                 processed_img = processed_img.convert('RGB')
@@ -459,16 +465,18 @@ def create_pdf_from_images(image_paths, output_path):
             )
 
             # Add trang mới nếu không phải ảnh cuối
-            if idx < len(image_paths) - 1:
+            if idx < len(processed_images) - 1:
                 # Update page size for next page if different
-                next_img = Image.open(image_paths[idx + 1])
-                processed_next = img_processor.process_scanned_image(next_img)
-                if processed_next.mode != 'RGB':
-                    processed_next = processed_next.convert('RGB')
-                c.setPageSize((processed_next.size[0], processed_next.size[1]))
+                next_img = processed_images[idx + 1]
+                if next_img.mode != 'RGB':
+                    next_img = next_img.convert('RGB')
+                c.setPageSize((next_img.size[0], next_img.size[1]))
                 c.showPage()
 
         c.save()
+        total_time = time.time() - start_time
+        print(f"[PDF] Step 3 - Created PDF in {time.time() - step_start:.3f}s")
+        print(f"[PDF] ✅ PDF creation completed in {total_time:.3f}s - Saved to: {output_path}\n")
         return True
     except Exception as e:
         print(f"Error creating PDF from images: {e}")

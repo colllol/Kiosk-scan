@@ -91,9 +91,7 @@ class Capture {
     }
 
     fastConvertToBlob(width, height) {
-        // Use high quality for best PDF output (backend will enhance further)
-        const quality = CONFIG.JPEG_QUALITY || 1.0;
-
+        // Sử dụng PNG lossless để giữ chất lượng 100%
         this.canvas.toBlob((blob) => {
             if (!blob) return;
 
@@ -108,7 +106,7 @@ class Capture {
 
             // Immediate toast (no wait)
             window.App?.toast?.show('Đã chụp', 'success');
-        }, 'image/jpeg', quality);
+        }, 'image/png', 1.0);
     }
 
     batchUpdateUI(imageModel) {
