@@ -86,10 +86,10 @@ def process_document(image):
         enhanced = cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
 
         # Step 7: Tăng 15% độ sáng
-        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.15, beta=0)
+        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.25, beta=0)
 
         # Step 8: Tăng nhẹ contrast (5%)
-        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.05, beta=0)
+        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.15, beta=0)
 
         return enhanced
     except Exception as e:
@@ -258,11 +258,11 @@ def process_with_pillow(image):
 
         # Very mild contrast (5%)
         enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(1.2)  # 1.15x contrast
+        image = enhancer.enhance(1.15)  # 1.15x contrast
 
         # Tăng 15% độ sáng
         enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(1.25)  # 1.2x brightness
+        image = enhancer.enhance(1.3)  # 1.3x brightness
 
         # Mild color saturation
         enhancer = ImageEnhance.Color(image)

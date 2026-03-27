@@ -25,8 +25,6 @@ import requests
 from print_ticket import print_ticket
 from PIL import Image
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 
 # Lazy import image processing module
@@ -361,10 +359,10 @@ def get_or_create_listpdfs(pdf_filename):
 def convert_image_to_pdf(image_path, output_path):
     """Chuyển đổi ảnh thành PDF với chất lượng cao nhất
 
-    Tăng 15% độ sáng, không nén ảnh
+    Tăng 15% độ sáng, không nén ảnh, giữ nguyên kích thước gốc
     """
     try:
-        # Mở ảnh và resize theo A4
+        # Mở ảnh gốc
         img = Image.open(image_path)
 
         # Convert RGBA to RGB if needed
@@ -377,39 +375,25 @@ def convert_image_to_pdf(image_path, output_path):
         elif img.mode != 'RGB':
             img = img.convert('RGB')
 
-        # Tính toán tỷ lệ để fit vào A4
-        a4_width, a4_height = A4
         img_width, img_height = img.size
 
-        # Tính scale để ảnh vừa với A4
-        scale = min(a4_width / img_width, a4_height / img_height)
-        new_width = int(img_width * scale)
-        new_height = int(img_height * scale)
-
-        # Resize ảnh với chất lượng cao
-        img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
-        # Tạo PDF với kích thước A4
-        c = canvas.Canvas(output_path, pagesize=A4)
-
-        # Calculate position để center ảnh
-        x = (a4_width - new_width) / 2
-        y = (a4_height - new_height) / 2
+        # Tạo PDF với kích thước theo ảnh gốc
+        c = canvas.Canvas(output_path, pagesize=(img_width, img_height))
 
         # Convert ảnh sang format phù hợp cho reportlab
         # Sử dụng PNG (KHÔNG NÉN) để giữ chất lượng ảnh 100%
         temp_png = io.BytesIO()
-        img_resized.save(temp_png, format='PNG')
+        img.save(temp_png, format='PNG')
         temp_png.seek(0)
 
-        # Draw ảnh vào PDF
+        # Draw ảnh vào PDF (không resize, không crop)
         img_reader = ImageReader(temp_png)
         c.drawImage(
             img_reader,
-            x, y,
-            width=new_width,
-            height=new_height,
-            preserveAspectRatio=True
+            0, 0,
+            width=img_width,
+            height=img_height,
+            preserveAspectRatio=False
         )
 
         c.save()
@@ -424,13 +408,24 @@ def convert_image_to_pdf(image_path, output_path):
 def create_pdf_from_images(image_paths, output_path):
     """Tạo PDF từ danh sách ảnh
 
-    Tăng 15% độ sáng, không nén ảnh để giữ chất lượng gốc
+    Tăng 15% độ sáng, không nén ảnh để giữ chất lượng gốc, giữ nguyên kích thước
     """
     try:
-        c = canvas.Canvas(output_path, pagesize=A4)
-
         # Lazy load image processor
         img_processor = get_image_processor()
+
+        # Process first image to get dimensions for PDF canvas
+        first_img = Image.open(image_paths[0])
+        processed_first = img_processor.process_scanned_image(first_img)
+        
+        # Convert to RGB if needed
+        if processed_first.mode != 'RGB':
+            processed_first = processed_first.convert('RGB')
+        
+        pdf_width, pdf_height = processed_first.size
+
+        # Create canvas with first image dimensions
+        c = canvas.Canvas(output_path, pagesize=(pdf_width, pdf_height))
 
         for idx, image_path in enumerate(image_paths):
             # Mở ảnh gốc
@@ -440,42 +435,36 @@ def create_pdf_from_images(image_paths, output_path):
             # Tăng 15% độ sáng, giữ nguyên chất lượng
             processed_img = img_processor.process_scanned_image(img)
 
-            img_width, img_height = processed_img.size
-
-            # Tính scale - giữ nguyên kích thước gốc để có chất lượng tốt nhất
-            a4_width, a4_height = A4
-            scale = min(a4_width / img_width, a4_height / img_height)
-            new_width = int(img_width * scale)
-            new_height = int(img_height * scale)
-
-            # Resize với chất lượng cao nhất
-            img_resized = processed_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
             # Convert to RGB if needed
-            if img_resized.mode != 'RGB':
-                img_resized = img_resized.convert('RGB')
+            if processed_img.mode != 'RGB':
+                processed_img = processed_img.convert('RGB')
+
+            img_width, img_height = processed_img.size
 
             # Save to BytesIO với PNG (KHÔNG NÉN, giữ chất lượng gốc 100%)
             temp_png = io.BytesIO()
-            img_resized.save(temp_png, format='PNG')
+            processed_img.save(temp_png, format='PNG')
             temp_png.seek(0)
 
-            # Center position
-            x = (a4_width - new_width) / 2
-            y = (a4_height - new_height) / 2
-
-            # Draw ảnh
+            # Draw ảnh (không resize, không crop)
             img_reader = ImageReader(temp_png)
             c.drawImage(
                 img_reader,
-                x, y,
-                width=new_width,
-                height=new_height,
-                preserveAspectRatio=True
+                0, 0,
+                width=img_width,
+                height=img_height,
+                preserveAspectRatio=False
             )
 
             # Add trang mới nếu không phải ảnh cuối
             if idx < len(image_paths) - 1:
+                # Update page size for next page if different
+                if idx < len(image_paths) - 1:
+                    next_img = Image.open(image_paths[idx + 1])
+                    processed_next = img_processor.process_scanned_image(next_img)
+                    if processed_next.mode != 'RGB':
+                        processed_next = processed_next.convert('RGB')
+                    c.setPageSize((processed_next.size[0], processed_next.size[1]))
                 c.showPage()
 
         c.save()
