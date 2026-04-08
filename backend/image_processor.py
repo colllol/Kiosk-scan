@@ -9,6 +9,7 @@ Hỗ trợ:
 Note: OpenCV is lazy-loaded to improve startup time
 """
 
+import os
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
@@ -31,55 +32,50 @@ def _load_cv2():
 
 def process_scanned_images_batch(image_list):
     """
-    Xử lý batch nhiều ảnh song song
+    Xử lý batch nhiều ảnh.
+    OpenCV chạy native code và thường nhả GIL, nên dùng ThreadPoolExecutor
+    để tăng tốc khi xử lý nhiều ảnh.
     Args:
         image_list: List các ảnh PIL
     Returns:
         List các ảnh đã xử lý
     """
     import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     start_time = time.time()
-    print(f"[IMG] Starting batch processing of {len(image_list)} image(s)...")
-    
-    # OPTION 1: Xử lý song song (có thể chậm với GIL)
-    # OPTION 2: Xử lý tuần tự (nhanh hơn với GIL)
-    USE_PARALLEL = False  # Set True để test song song
-    
-    if USE_PARALLEL:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+    count = len(image_list)
+    if count == 0:
+        return []
 
-        results = [None] * len(image_list)
+    if count == 1:
+        one = process_scanned_image(image_list[0])
+        print(f"[IMG] Batch (1 image) completed in {time.time() - start_time:.3f}s\n")
+        return [one]
 
-        def process_single(args):
-            idx, img = args
-            img_start = time.time()
-            result = process_scanned_image(img)
-            print(f"[IMG] Processed image {idx} in {time.time() - img_start:.3f}s")
-            return idx, result
+    print(f"[IMG] Starting batch processing of {count} image(s) (parallel)...")
 
-        # Giảm worker xuống 4 để test
-        max_workers = 4
+    # Giới hạn worker để tăng tốc nhưng tránh quá tải CPU/RAM
+    ncpu = os.cpu_count() or 4
+    max_workers = min(count, ncpu, 8)
+    results = [None] * count
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(process_single, (i, img)): i 
-                       for i, img in enumerate(image_list)}
+    def process_single(index, image):
+        return index, process_scanned_image(image)
 
-            for future in as_completed(futures):
-                try:
-                    idx, processed_img = future.result()
-                    results[idx] = processed_img
-                except Exception as e:
-                    print(f"Error processing image {futures[future]}: {e}")
-                    # Fallback to original image
-                    results[futures[future]] = image_list[futures[future]]
-    else:
-        # Xử lý tuần tự - có thể nhanh hơn với GIL
-        results = []
-        for i, img in enumerate(image_list):
-            img_start = time.time()
-            result = process_scanned_image(img)
-            print(f"[IMG] Processed image {i} in {time.time() - img_start:.3f}s")
-            results.append(result)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(process_single, i, img): i
+            for i, img in enumerate(image_list)
+        }
+        for future in as_completed(futures):
+            i = futures[future]
+            try:
+                idx, processed_img = future.result()
+                results[idx] = processed_img
+            except Exception as e:
+                print(f"Error processing image {i}: {e}")
+                results[i] = image_list[i]
 
     print(f"[IMG] Batch processing completed in {time.time() - start_time:.3f}s\n")
     return results
@@ -126,7 +122,7 @@ def process_document(image):
         blurred = cv2.GaussianBlur(image, (3, 3), 0)
 
         # Step 2: Apply mild unsharp masking for sharpness
-        alpha = 1.0  # Mild sharpening
+        alpha = 0.75  # Giảm sharpening để tránh halo/nhòe viền chữ
         sharpened = cv2.addWeighted(image, 1 + alpha, blurred, -alpha, 0)
 
         # Step 3: Convert to LAB color space
@@ -146,8 +142,8 @@ def process_document(image):
         # Step 5: Convert back to BGR
         enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
-        # Step 6: Gộp 2 bước tăng sáng + contrast thành 1 (alpha = 1.25 * 1.15 = 1.4375)
-        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.4375, beta=0)
+        # Step 6: Giảm mức contrast/sáng để giữ nét chữ tự nhiên hơn
+        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.25, beta=0)
 
         return enhanced
     except Exception as e:

@@ -421,9 +421,12 @@ def create_pdf_from_images(image_paths, output_path):
         img_processor = get_image_processor()
         
         step_start = time.time()
-        # Mở tất cả ảnh trước (mở 1 lần, dùng nhiều lần)
-        pil_images = [Image.open(path) for path in image_paths]
-        print(f"[PDF] Step 1 - Opened {len(pil_images)} images in {time.time() - step_start:.3f}s")
+        # Mở ảnh + resize về độ rộng phù hợp A4 để giảm thời gian xử lý
+        pil_images = []
+        for path in image_paths:
+            img = Image.open(path)
+            pil_images.append(img_processor.resize_to_a4(img))
+        print(f"[PDF] Step 1 - Opened & resized {len(pil_images)} images in {time.time() - step_start:.3f}s")
 
         step_start = time.time()
         # Xử lý batch song song
@@ -448,10 +451,15 @@ def create_pdf_from_images(image_paths, output_path):
 
             img_width, img_height = processed_img.size
 
-            # Save to BytesIO với JPEG chất lượng 90% (nhanh hơn PNG, file nhỏ hơn)
-            # Chất lượng 90% gần như không phân biệt được với PNG
+            # Save to BytesIO với JPEG rõ nét hơn cho text và tối ưu tốc độ export
             temp_jpg = io.BytesIO()
-            processed_img.save(temp_jpg, format='JPEG', quality=90, optimize=True)
+            processed_img.save(
+                temp_jpg,
+                format='JPEG',
+                quality=95,
+                optimize=False,
+                subsampling=0
+            )
             temp_jpg.seek(0)
 
             # Draw ảnh (không resize, không crop)
