@@ -57,37 +57,8 @@ class Capture {
         this.ctx.drawImage(video, -videoWidth / 2, -videoHeight / 2, videoWidth, videoHeight);
         this.ctx.restore();
 
-        // Apply brightness and contrast enhancement on canvas for preview
-        // This makes preview brighter and sharper (PDF will be enhanced on backend)
-        this.applyBrightnessContrast();
-
-        // Convert to blob immediately (NO sharpening, NO extra processing)
+        // Convert to blob immediately (NO sharpening, NO brightness/contrast, NO extra processing)
         this.fastConvertToBlob(outputWidth, outputHeight);
-    }
-
-    applyBrightnessContrast() {
-        // Apply brightness and contrast enhancement for preview
-        // PDF will have more aggressive enhancement on backend
-        const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-        const data = imageData.data;
-        
-        const brightness = 20;  // +20 brightness
-        const contrast = 1.3;   // 1.3x contrast
-        
-        // Apply brightness and contrast to each pixel
-        for (let i = 0; i < data.length; i += 4) {
-            // Apply brightness
-            data[i] = Math.min(255, data[i] + brightness);     // R
-            data[i + 1] = Math.min(255, data[i + 1] + brightness); // G
-            data[i + 2] = Math.min(255, data[i + 2] + brightness); // B
-            
-            // Apply contrast
-            data[i] = Math.min(255, Math.max(0, (data[i] - 128) * contrast + 128));
-            data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * contrast + 128));
-            data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * contrast + 128));
-        }
-        
-        this.ctx.putImageData(imageData, 0, 0);
     }
 
     fastConvertToBlob(width, height) {

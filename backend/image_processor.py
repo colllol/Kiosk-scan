@@ -31,55 +31,57 @@ def _load_cv2():
 
 def process_scanned_images_batch(image_list):
     """
-    Xử lý batch nhiều ảnh song song
+    Xử lý batch nhiều ảnh song song với đa luồng
     Args:
         image_list: List các ảnh PIL
     Returns:
-        List các ảnh đã xử lý
+        List các ảnh đã xử lý (giữ nguyên chất lượng gốc, chỉ xoay nếu cần)
     """
     import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
     start_time = time.time()
-    print(f"[IMG] Starting batch processing of {len(image_list)} image(s)...")
-    
-    # OPTION 1: Xử lý song song (có thể chậm với GIL)
-    # OPTION 2: Xử lý tuần tự (nhanh hơn với GIL)
-    USE_PARALLEL = False  # Set True để test song song
-    
-    if USE_PARALLEL:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+    print(f"[IMG] Starting batch processing of {len(image_list)} image(s) with multi-threading...")
 
-        results = [None] * len(image_list)
+    results = [None] * len(image_list)
+    
+    # Sử dụng ThreadPoolExecutor để xử lý song song
+    # Số worker = số CPU cores (tối ưu cho I/O bound tasks)
+    import os
+    max_workers = min(os.cpu_count() or 4, len(image_list))
+    print(f"[IMG] Using {max_workers} worker thread(s)")
 
-        def process_single(args):
-            idx, img = args
-            img_start = time.time()
+    def process_single(args):
+        idx, img = args
+        img_start = time.time()
+        try:
+            # Chỉ giữ nguyên ảnh, không xử lý tăng sáng/tương phản
             result = process_scanned_image(img)
             print(f"[IMG] Processed image {idx} in {time.time() - img_start:.3f}s")
             return idx, result
+        except Exception as e:
+            print(f"[IMG] Error processing image {idx}: {e}")
+            # Fallback to original image to ensure no image is skipped
+            return idx, img
 
-        # Giảm worker xuống 4 để test
-        max_workers = 4
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_single, (i, img)): i
+                   for i, img in enumerate(image_list)}
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(process_single, (i, img)): i 
-                       for i, img in enumerate(image_list)}
+        for future in as_completed(futures):
+            try:
+                idx, processed_img = future.result()
+                results[idx] = processed_img
+            except Exception as e:
+                print(f"[IMG] Error getting result: {e}")
+                # Ensure no image is skipped - use original
+                results[futures[future]] = image_list[futures[future]]
 
-            for future in as_completed(futures):
-                try:
-                    idx, processed_img = future.result()
-                    results[idx] = processed_img
-                except Exception as e:
-                    print(f"Error processing image {futures[future]}: {e}")
-                    # Fallback to original image
-                    results[futures[future]] = image_list[futures[future]]
-    else:
-        # Xử lý tuần tự - có thể nhanh hơn với GIL
-        results = []
-        for i, img in enumerate(image_list):
-            img_start = time.time()
-            result = process_scanned_image(img)
-            print(f"[IMG] Processed image {i} in {time.time() - img_start:.3f}s")
-            results.append(result)
+    # Verify all images were processed
+    for i, result in enumerate(results):
+        if result is None:
+            print(f"[IMG] Warning: Image {i} was not processed, using original")
+            results[i] = image_list[i]
 
     print(f"[IMG] Batch processing completed in {time.time() - start_time:.3f}s\n")
     return results
@@ -119,25 +121,25 @@ def process_with_opencv(pil_image):
 def process_document(image):
     """
     Main pipeline: Process image for PDF output
-    Tối ưu: Giảm bước chuyển đổi, gộp operations, cache CLAHE
+    Tăng sáng và tương phản nhẹ, giảm nhiễu, tránh over-processing
     """
     try:
-        # Step 1: Apply slight Gaussian blur to reduce noise
-        blurred = cv2.GaussianBlur(image, (3, 3), 0)
+        # Step 1: Apply Gaussian blur để giảm nhiễu (kernel lớn hơn)
+        blurred = cv2.GaussianBlur(image, (5, 5), 0)
 
-        # Step 2: Apply mild unsharp masking for sharpness
-        alpha = 1.0  # Mild sharpening
+        # Step 2: Apply unsharp masking nhẹ hơn (alpha=0.5 thay vì 1.0)
+        alpha = 0.5  # Giảm sharpening để tránh nhiễu
         sharpened = cv2.addWeighted(image, 1 + alpha, blurred, -alpha, 0)
 
         # Step 3: Convert to LAB color space
         lab = cv2.cvtColor(sharpened, cv2.COLOR_BGR2LAB)
-        
-        # Step 4: Apply CLAHE trực tiếp trên kênh L (không cần tách/gộp kênh)
+
+        # Step 4: Apply CLAHE nhẹ hơn (clipLimit=1.2 thay vì 1.5)
         global _clahe_cache
         if _clahe_cache is None:
-            _clahe_cache = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
+            _clahe_cache = cv2.createCLAHE(clipLimit=1.2, tileGridSize=(8, 8))
         clahe = _clahe_cache
-        
+
         # Xử lý trực tiếp trên kênh L (index 0)
         l_channel = lab[:, :, 0]
         l_enhanced = clahe.apply(l_channel)
@@ -146,8 +148,11 @@ def process_document(image):
         # Step 5: Convert back to BGR
         enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
-        # Step 6: Gộp 2 bước tăng sáng + contrast thành 1 (alpha = 1.25 * 1.15 = 1.4375)
-        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.4375, beta=0)
+        # Step 6: Tăng sáng + contrast nhẹ hơn
+        # Brightness: 1.15x (giảm từ 1.3x)
+        # Contrast: 1.1x (giảm từ 1.15x)
+        # Gộp thành: alpha = 1.15 * 1.1 = 1.265
+        enhanced = cv2.convertScaleAbs(enhanced, alpha=1.265, beta=0)
 
         return enhanced
     except Exception as e:
@@ -303,28 +308,28 @@ def enhance_document(image):
 def process_with_pillow(image):
     """
     Fallback: Xử lý ảnh dùng Pillow
-    Tăng 15% độ sáng, giữ nguyên chất lượng ảnh gốc
+    Tăng sáng và tương phản nhẹ, giảm nhiễu
     """
     try:
         # Convert to RGB if needed (keep color)
         if image.mode != 'RGB':
             image = image.convert('RGB')
 
-        # Mild sharpness for clarity
+        # Nhẹ nhàng sharpening (giảm từ 1.2x xuống 1.1x)
         enhancer = ImageEnhance.Sharpness(image)
-        image = enhancer.enhance(1.2)  # 1.2x sharpness
+        image = enhancer.enhance(1.1)
 
-        # Very mild contrast (5%)
+        # Nhẹ nhàng contrast (giảm từ 1.15x xuống 1.08x)
         enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(1.15)  # 1.15x contrast
+        image = enhancer.enhance(1.08)
 
-        # Tăng 15% độ sáng
+        # Tăng sáng nhẹ (giảm từ 1.3x xuống 1.15x)
         enhancer = ImageEnhance.Brightness(image)
-        image = enhancer.enhance(1.3)  # 1.3x brightness
+        image = enhancer.enhance(1.15)
 
-        # Mild color saturation
+        # Nhẹ nhàng color saturation (giảm từ 1.1x xuống 1.05x)
         enhancer = ImageEnhance.Color(image)
-        image = enhancer.enhance(1.1)  # 1.1x color saturation
+        image = enhancer.enhance(1.05)
 
         return image
 

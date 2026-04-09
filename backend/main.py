@@ -382,9 +382,9 @@ def convert_image_to_pdf(image_path, output_path):
         c = canvas.Canvas(output_path, pagesize=(img_width, img_height))
 
         # Convert ảnh sang format phù hợp cho reportlab
-        # Sử dụng JPEG chất lượng 90% (nhanh hơn PNG, file nhỏ hơn)
+        # Sử dụng JPEG chất lượng 98% (tối đa, giảm nhiễu nén)
         temp_jpg = io.BytesIO()
-        img.save(temp_jpg, format='JPEG', quality=90, optimize=True)
+        img.save(temp_jpg, format='JPEG', quality=98, optimize=True)
         temp_jpg.seek(0)
 
         # Draw ảnh vào PDF (không resize, không crop)
@@ -407,28 +407,53 @@ def convert_image_to_pdf(image_path, output_path):
 
 
 def create_pdf_from_images(image_paths, output_path):
-    """Tạo PDF từ danh sách ảnh
+    """Tạo PDF từ danh sách ảnh - Xử lý tăng sáng/tương phản ở backend, đa luồng
 
-    Tăng 15% độ sáng, không nén ảnh để giữ chất lượng gốc, giữ nguyên kích thước
-    Tối ưu: Batch processing, dùng JPEG 90%
+    Backend xử lý: tăng sáng, tương phản, sharpening (chuyển từ frontend xuống)
+    Giữ nguyên độ phân giải và tỉ lệ 1:1
+    Tối ưu: Multi-threading batch processing
     """
     import time
     start_time = time.time()
     print(f"\n[PDF] Starting PDF creation with {len(image_paths)} image(s)...")
-    
+
     try:
         # Lazy load image processor
         img_processor = get_image_processor()
-        
+
         step_start = time.time()
         # Mở tất cả ảnh trước (mở 1 lần, dùng nhiều lần)
-        pil_images = [Image.open(path) for path in image_paths]
+        pil_images = []
+        for path in image_paths:
+            try:
+                img = Image.open(path)
+                pil_images.append(img)
+            except Exception as e:
+                print(f"[PDF] Warning: Could not open image {path}: {e}")
+                # Skip invalid images but continue processing
+        
+        if not pil_images:
+            print("[PDF] Error: No valid images to process")
+            return False
+            
         print(f"[PDF] Step 1 - Opened {len(pil_images)} images in {time.time() - step_start:.3f}s")
 
         step_start = time.time()
-        # Xử lý batch song song
+        # Xử lý batch song song với đa luồng
         processed_images = img_processor.process_scanned_images_batch(pil_images)
         print(f"[PDF] Step 2 - Batch processed images in {time.time() - step_start:.3f}s")
+
+        # Verify all images were processed
+        if len(processed_images) != len(pil_images):
+            print(f"[PDF] Warning: Expected {len(pil_images)} images, got {len(processed_images)}")
+            # Fill in any missing images with originals
+            for i in range(len(pil_images)):
+                if i >= len(processed_images) or processed_images[i] is None:
+                    print(f"[PDF] Filling missing image {i} with original")
+                    if i < len(processed_images):
+                        processed_images[i] = pil_images[i]
+                    else:
+                        processed_images.append(pil_images[i])
 
         # Lấy kích thước từ ảnh đầu tiên
         processed_first = processed_images[0]
@@ -448,13 +473,12 @@ def create_pdf_from_images(image_paths, output_path):
 
             img_width, img_height = processed_img.size
 
-            # Save to BytesIO với JPEG chất lượng 90% (nhanh hơn PNG, file nhỏ hơn)
-            # Chất lượng 90% gần như không phân biệt được với PNG
+            # Save to BytesIO với JPEG chất lượng 98% (tối đa, giảm nhiễu nén)
             temp_jpg = io.BytesIO()
-            processed_img.save(temp_jpg, format='JPEG', quality=90, optimize=True)
+            processed_img.save(temp_jpg, format='JPEG', quality=98, optimize=True)
             temp_jpg.seek(0)
 
-            # Draw ảnh (không resize, không crop)
+            # Draw ảnh (không resize, không crop, giữ nguyên kích thước gốc)
             img_reader = ImageReader(temp_jpg)
             c.drawImage(
                 img_reader,
