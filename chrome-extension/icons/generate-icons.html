@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Generate Icons</title>
+</head>
+<body>
+  <h1>Click the button to generate icons</h1>
+  <button onclick="generateIcons()">Generate Icons</button>
+  <div id="status"></div>
+
+  <script>
+    function createIcon(size) {
+      return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        // Background
+        ctx.fillStyle = '#2196f3';
+        ctx.fillRect(0, 0, size, size);
+        
+        // Rounded corners
+        const radius = size * 0.15;
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.beginPath();
+        ctx.roundRect(0, 0, size, size, radius);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Form icon
+        ctx.fillStyle = 'white';
+        const padding = size * 0.2;
+        const iconSize = size - padding * 2;
+        
+        // Draw simplified form lines
+        ctx.fillRect(padding, padding * 0.6, iconSize, iconSize * 0.08);
+        ctx.fillRect(padding, padding * 1.0, iconSize, iconSize * 0.08);
+        ctx.fillRect(padding, padding * 1.4, iconSize * 0.6, iconSize * 0.08);
+        
+        // AF text
+        ctx.font = `bold ${size * 0.2}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('AF', size / 2, size * 0.75);
+        
+        // Download
+        canvas.toBlob(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `icon${size}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+          resolve();
+        }, 'image/png');
+      });
+    }
+
+    async function generateIcons() {
+      const status = document.getElementById('status');
+      status.textContent = 'Generating 16px icon...';
+      await createIcon(16);
+      
+      status.textContent = 'Generating 48px icon...';
+      await createIcon(48);
+      
+      status.textContent = 'Generating 128px icon...';
+      await createIcon(128);
+      
+      status.textContent = '✅ All icons generated! Check your downloads folder.';
+    }
+  </script>
+</body>
+</html>

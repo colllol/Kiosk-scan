@@ -159,12 +159,13 @@
                         <span>Xóa tất cả</span>
                     </button>
                     <button id="pdf-btn"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style="display: none;">
                         <i class="fas fa-file-pdf"></i>
                         <span>Lấy số thứ tự</span>
                     </button>
-                    
-                        <select title="serviceID" style=" height: 40px; font-size: 15px; color: #000; background-color: #fff;" id="service-select" class="combo-box">
+
+                        <select title="serviceID" style="display: none;" id="service-select" class="combo-box">
                             <option value="#">Chọn dịch vụ </option>
                             <option value="1">Kinh tế - Xã hội</option>
                             <option value="2">Tư pháp - Hộ tịch</option>
@@ -173,6 +174,12 @@
                             <option value="5">Kế toán - Tài chính</option>
                             <option value="6">Giáo dục - Y tế</option>
                         </select>
+
+                    <button id="certify-btn"
+                        class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2">
+                        <i class="fas fa-certificate"></i>
+                        <span>Chứng thực tài liệu</span>
+                    </button>
                     
                 </div>
             </div>
@@ -238,5 +245,4 @@
     <script src="js/components/Api.js"></script>
     <script src="js/app.js"></script>
 </body>
-
 </html>

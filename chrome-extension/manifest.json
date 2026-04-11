@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "Auto Fill Form - Dịch Vụ Công",
+  "version": "1.0.0",
+  "description": "Tự động điền thông tin vào form dịch vụ công từ dữ liệu API JSON",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "unlimitedStorage",
+    "notifications",
+    "tabs",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://dichvucong.thainguyen.gov.vn/*",
+    "file:///*",
+    "http://localhost/*",
+    "http://localhost:5000/*",
+    "http://localhost:5431/*",
+    "http://127.0.0.1/*",
+    "http://192.168.100.238/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://dichvucong.thainguyen.gov.vn/*",
+        "file:///*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

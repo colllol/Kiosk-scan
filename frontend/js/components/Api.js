@@ -224,6 +224,86 @@ class Api {
     clearDocumentIds() {
         this.documentIds = [];
     }
+
+    /**
+     * Chứng thực tài liệu - độc lập sự kiện, không dùng chung với createPDF
+     * Gửi ảnh lên backend kèm serviceID=99 và serviceName lấy từ localhost:5431
+     */
+    async certifyDocuments() {
+        const hasImages = this.imageStore.count > 0;
+
+        if (!hasImages) {
+            window.App?.toast?.show('Vui lòng chụp ít nhất 1 ảnh trước khi chứng thực', 'error');
+            return;
+        }
+
+        state.isLoading = true;
+        this.setLoading(true);
+
+        try {
+            // Step 1: Fetch fullName từ localhost:5431
+            let serviceName = 'Chứng thực tài liệu';
+            try {
+                const response = await fetch('http://localhost:5431/');
+                if (response.ok) {
+                    const data = await response.json();
+                    // Cấu trúc: data.data.cardObj.fullName
+                    const fullName = data?.data?.cardObj?.fullName || null;
+                    if (fullName) {
+                        serviceName = fullName;
+                    }
+                }
+            } catch (err) {
+                console.warn('Could not fetch fullName from localhost:5431:', err.message);
+            }
+
+            // Step 2: Upload all images
+            const ids = await this.uploadAllImages();
+            if (ids.length === 0) {
+                window.App?.toast?.show('Lỗi: Không thể upload ảnh', 'error');
+                return;
+            }
+
+            window.App?.toast?.show(`Đã upload ${ids.length} ảnh. Đang xử lý...`, 'info');
+
+            // Step 3: Call export endpoint với serviceID=99 và serviceName từ API
+            const response = await fetch(CONFIG.API_EXPORT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ids: ids,
+                    filename: null,
+                    serviceId: 99,
+                    serviceName: serviceName
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Lỗi xử lý tài liệu');
+            }
+
+            // Reset
+            this.documentIds = [];
+            this.imageStore.clear();
+            window.App?.imageList?.clear();
+            window.App?.updateUI();
+            localStorage.removeItem('webscan_images');
+
+            window.App?.toast?.show('Đã chứng thực xong! Đang chuyển trang...', 'success');
+
+            // Navigate to dịch vụ công
+            setTimeout(() => {
+                window.location.href = 'https://dichvucong.thainguyen.gov.vn/nop-ho-so?MaTTHCDP=2.000815.000.00.00.H55&MaCoQuanThucHien=H55.242&vnconnect=1&MaDVC=2.000815.000.00.00.H55.02&MDT=MzQ1ZTQwMDctY2ZlMS00YmQ4LTgxNjctN2MxZTYzYjUzNjU3';
+            }, 1500);
+
+        } catch (error) {
+            console.error('Certify error:', error);
+            window.App?.toast?.show('Lỗi: ' + error.message, 'error');
+        } finally {
+            state.isLoading = false;
+            this.setLoading(false);
+        }
+    }
 }
 
 window.Api = Api;

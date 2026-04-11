@@ -105,6 +105,12 @@ class TicketRequest(BaseModel):
     serviceName: Optional[str] = None
 
 
+class PrintTicketRequest(BaseModel):
+    stt: int
+    filename: Optional[str] = None
+    serviceName: Optional[str] = None
+
+
 def generate_pdf_filename():
     """Generate filename với format STT_DATETIME"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -233,13 +239,15 @@ def parse_datetime_from_pdf_filename(pdf_filename: str) -> Optional[datetime]:
 def get_latest_ticket_from_list(listpdfs_path: str):
     """
     Lấy bản ghi mới nhất (STT lớn nhất) trong listpdfs.
-    Return: (stt:int|None, pdf_filename:str|None)
+    Return: (stt:int|None, pdf_filename:str|None, serviceId:int|None, serviceName:str|None)
     """
     if not os.path.exists(listpdfs_path):
-        return None, None
+        return None, None, None, None
 
     best_stt = None
     best_filename = None
+    best_service_id = None
+    best_service_name = None
     try:
         with open(listpdfs_path, "r", encoding="utf-8") as f:
             for raw in f.readlines():
@@ -248,21 +256,43 @@ def get_latest_ticket_from_list(listpdfs_path: str):
                     continue
                 if "|" not in line:
                     continue
-                left, right = line.split("|", 1)
-                stt_str = left.strip()
-                filename = right.strip()
+                parts = line.split("|")
+                
+                # Parse STT (phần 1)
+                stt_str = parts[0].strip()
                 try:
                     stt = int(stt_str)
                 except Exception:
                     continue
+                
+                # Parse filename (phần 2)
+                filename = parts[1].strip() if len(parts) > 1 else None
+                
+                # Parse serviceId (phần 3)
+                service_id = None
+                if len(parts) > 2:
+                    sid_str = parts[2].strip()
+                    try:
+                        service_id = int(sid_str)
+                    except ValueError:
+                        pass
+                
+                # Parse serviceName (phần 4)
+                service_name = None
+                if len(parts) > 3:
+                    service_name = parts[3].strip()
+                
+                # Cập nhật nếu STT lớn hơn
                 if best_stt is None or stt > best_stt:
                     best_stt = stt
                     best_filename = filename
+                    best_service_id = service_id
+                    best_service_name = service_name
     except Exception as e:
         print(f"Error parsing listpdfs: {e}")
-        return None, None
+        return None, None, None, None
 
-    return best_stt, best_filename
+    return best_stt, best_filename, best_service_id, best_service_name
 
 
 def send_ticket_to_api(stt: int, serviceId: int = 1, counterId: int = 1, pdf_filename: str = "", ticket_only: bool = False):
@@ -606,16 +636,8 @@ async def export_pdf(request: ExportRequest, background_tasks: BackgroundTasks):
         listpdfs_path = get_or_create_listpdfs(pdf_filename)
         latest_stt = log_pdf_to_list(pdf_filename, listpdfs_path, request.serviceId, request.serviceName)
 
-        # Gửi số thứ tự lên API QueueSystem với serviceId và pdf_filename (ticket_only=False)
-        service_id = request.serviceId or 1
-        if latest_stt is not None:
-            background_tasks.add_task(send_ticket_to_api, latest_stt, service_id, 1, pdf_filename, False)
-
-        # Lấy STT lớn nhất mới nhất trong listpdfs để in phiếu
-        latest_stt_print, latest_filename = get_latest_ticket_from_list(listpdfs_path)
-        dt = parse_datetime_from_pdf_filename(latest_filename or pdf_filename)
-        if latest_stt_print is not None:
-            background_tasks.add_task(run_print_ticket, latest_stt_print, dt, request.serviceName or "HỘ TỊCH - CHỨNG THỰC")
+        # NOTE: API QueueSystem và in ticket sẽ được xử lý bởi extension
+        # khi detect URL /thong-tin-cong-dan
 
         # Trả về file PDF
         return FileResponse(
@@ -629,6 +651,70 @@ async def export_pdf(request: ExportRequest, background_tasks: BackgroundTasks):
     except Exception as e:
         print(f"Export error: {e}")
         raise HTTPException(status_code=500, detail=f"Lỗi export: {str(e)}")
+
+
+@app.get("/api/latest-ticket")
+async def get_latest_ticket():
+    """
+    Lấy thông tin ticket mới nhất từ listpdfs.txt
+    Trả về TẤT CẢ thông tin: stt, filename, serviceId, serviceName
+    Extension sẽ dùng thông tin này để gọi API QueueSystem và in ticket
+    """
+    try:
+        # Lấy file listpdfs của ngày hiện tại
+        current_date = datetime.now().strftime("%Y%m%d")
+        listpdfs_filename = f"{current_date}_listpdfs.txt"
+        listpdfs_path = os.path.join(LISTPDF_DIR, listpdfs_filename)
+
+        if not os.path.exists(listpdfs_path):
+            raise HTTPException(status_code=404, detail="Không có ticket nào trong ngày hôm nay")
+
+        # Đọc ticket mới nhất - TẤT CẢ thông tin từ listpdfs
+        latest_stt, latest_filename, latest_service_id, latest_service_name = get_latest_ticket_from_list(listpdfs_path)
+
+        if latest_stt is None:
+            raise HTTPException(status_code=404, detail="Không tìm thấy ticket nào")
+
+        return {
+            "stt": latest_stt,
+            "formattedStt": f"{latest_stt:04d}",
+            "filename": latest_filename,
+            "serviceId": latest_service_id,
+            "serviceName": latest_service_name
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting latest ticket: {e}")
+        raise HTTPException(status_code=500, detail=f"Lỗi: {str(e)}")
+
+
+@app.post("/api/print-ticket")
+async def print_ticket_endpoint(request: PrintTicketRequest):
+    """
+    In ticket theo yêu cầu từ extension
+    Nhận stt và serviceName, gọi hàm in ticket
+    """
+    try:
+        print(f"[PRINT API] Received print request: stt={request.stt}, serviceName={request.serviceName}")
+        
+        # Parse datetime từ filename nếu có
+        dt = None
+        if request.filename:
+            dt = parse_datetime_from_pdf_filename(request.filename)
+        
+        # Gọi hàm in ticket
+        run_print_ticket(request.stt, dt, request.serviceName or "HỘ TỊCH - CHỨNG THỰC")
+        
+        return {
+            "success": True,
+            "message": f"Đã gửi lệnh in ticket #{request.stt:04d}"
+        }
+
+    except Exception as e:
+        print(f"[PRINT API] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Lỗi in ticket: {str(e)}")
 
 
 @app.get("/api/images")

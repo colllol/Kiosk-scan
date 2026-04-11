@@ -11,6 +11,7 @@ class App {
             imageList: document.getElementById('image-list'),
             imageCount: document.getElementById('image-count'),
             pdfBtn: document.getElementById('pdf-btn'),
+            certifyBtn: document.getElementById('certify-btn'),
             resetBtn: document.getElementById('reset-btn'),
             flash: document.getElementById('flash'),
             cameraError: document.getElementById('camera-error'),
@@ -59,7 +60,7 @@ class App {
         // Initialize camera
         await this.camera.init();
 
-// Handle video play
+        // Handle video play
         this.elements.video.addEventListener('play', () => {
             this.elements.cameraError.classList.add('hidden');
             this.elements.video.classList.remove('hidden');
@@ -79,8 +80,11 @@ class App {
         // Reset button
         this.elements.resetBtn.addEventListener('click', () => this.resetImages());
 
-        // PDF button
+        // PDF button (Lấy số thứ tự) - sự kiện riêng
         this.elements.pdfBtn.addEventListener('click', () => this.api.createPDF());
+
+        // Certify button (Chứng thực tài liệu) - sự kiện riêng, độc lập
+        this.elements.certifyBtn.addEventListener('click', () => this.api.certifyDocuments());
     }
 
     updateUI() {
