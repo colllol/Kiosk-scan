@@ -1,6 +1,8 @@
 /**
 Camera Component - Handles camera initialization and management
 */
+import { state } from '../config.js';
+
 class Camera {
     constructor(elements) {
         this.elements = elements;
@@ -12,8 +14,8 @@ class Camera {
             const constraints = {
                 video: {
                     facingMode: { ideal: 'environment' },
-                    width: { ideal: 4608 },
-                    height: { ideal: 3456 },
+                    width: { ideal: 3840 },
+                    height: { ideal: 2160 },
                     // Yêu cầu góc nhìn rộng nhất
                     advanced: [
                         { focusMode: 'continuous' },  // Tự động chỉnh tiêu cự liên tục
@@ -35,7 +37,7 @@ class Camera {
                 // Cấu hình để video lấp đầy khung camera
                 this.elements.video.style.width = '100%';
                 this.elements.video.style.height = '100%';
-                this.elements.video.style.objectFit = 'contain'; // Thay 'container' bằng 'cover' để lấp đầy
+                this.elements.video.style.objectFit = 'cover'; // Kéo dãn lấp đầy, không viền đen
                 
                 // Tăng độ sáng cho video (1.2 là 120% độ sáng, có thể điều chỉnh)
                 this.elements.video.style.filter = 'brightness(1.1) contrast(1.1)';
@@ -124,5 +126,5 @@ class Camera {
         return this.setFocus('continuous');
     }
 }
-// Export for global use
-window.Camera = Camera;
+
+export { Camera };

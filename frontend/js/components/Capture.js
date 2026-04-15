@@ -1,25 +1,19 @@
-/**
-Capture Component - ULTRA FAST image capture
-*/
+// Capture.js
+import { ImageModel } from '../models/ImageModel.js';
+import { state } from '../config.js';
+
 class Capture {
     constructor(elements, imageStore) {
         this.elements = elements;
         this.imageStore = imageStore;
-
-        // Pre-create and reuse canvas (CRITICAL for performance)
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d', {
             alpha: false,
             desynchronized: true,
             willReadFrequently: false
         });
-
-        // Cache dimensions
         this.cachedWidth = 0;
         this.cachedHeight = 0;
-
-        // Debounce save operations
-        this.saveTimeout = null;
     }
 
     capture() {
@@ -34,15 +28,14 @@ class Capture {
             return;
         }
 
-        // Minimal flash effect (50ms instead of 300ms)
+        // Flash effect
         this.elements.flash.classList.add('flash-active');
         setTimeout(() => this.elements.flash.classList.remove('flash-active'), 50);
 
-        // --- OPTIMIZED: Rotate -90 degrees ---
+        // Rotate -90° (camera đặt ngang)
         const outputWidth = videoHeight;
         const outputHeight = videoWidth;
 
-        // Resize canvas only if dimensions changed
         if (this.cachedWidth !== outputWidth || this.cachedHeight !== outputHeight) {
             this.canvas.width = outputWidth;
             this.canvas.height = outputHeight;
@@ -50,48 +43,31 @@ class Capture {
             this.cachedHeight = outputHeight;
         }
 
-        // Fast rotate and capture
         this.ctx.save();
         this.ctx.translate(outputWidth / 2, outputHeight / 2);
         this.ctx.rotate(-Math.PI / 2);
         this.ctx.drawImage(video, -videoWidth / 2, -videoHeight / 2, videoWidth, videoHeight);
         this.ctx.restore();
 
-        // Convert to blob immediately (NO sharpening, NO brightness/contrast, NO extra processing)
-        this.fastConvertToBlob(outputWidth, outputHeight);
+        // Lưu ảnh gốc (đã xoay) - Backend sẽ xử lý auto-crop
+        this.saveImage(outputWidth, outputHeight);
     }
 
-    fastConvertToBlob(width, height) {
-        // Sử dụng PNG lossless để giữ chất lượng 100%
-        this.canvas.toBlob((blob) => {
-            if (!blob) return;
-
-            const imageModel = new ImageModel(blob, width, height);
-            this.imageStore.add(imageModel);
-
-            // DEBOUNCED: Batch UI updates (wait 50ms)
-            if (this.saveTimeout) clearTimeout(this.saveTimeout);
-            this.saveTimeout = setTimeout(() => {
-                this.batchUpdateUI(imageModel);
-            }, 50);
-
-            // Immediate toast (no wait)
-            window.App?.toast?.show('Đã chụp', 'success');
-        }, 'image/png', 1.0);
+    async saveImage(width, height) {
+        const blob = await new Promise(resolve => this.canvas.toBlob(resolve, 'image/png'));
+        const imageModel = new ImageModel(blob, width, height);
+        this.imageStore.add(imageModel);
+        this.batchUpdateUI(imageModel);
+        window.App?.toast?.show('Đã chụp ảnh', 'success');
     }
 
     batchUpdateUI(imageModel) {
-        // Single batch update instead of multiple calls
         requestAnimationFrame(() => {
             window.App?.imageList?.render(imageModel, this.imageStore.count - 1);
             window.App?.updateUI();
-
-            // Async save to localStorage (non-blocking)
-            setTimeout(() => {
-                window.App?.saveImages();
-            }, 100);
+            setTimeout(() => window.App?.saveImages(), 100);
         });
     }
 }
 
-window.Capture = Capture;
+export { Capture };

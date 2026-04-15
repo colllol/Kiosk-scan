@@ -32,5 +32,4 @@ class Toast {
     }
 }
 
-// Export for global use
-window.Toast = Toast;
+export { Toast };

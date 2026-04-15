@@ -437,10 +437,12 @@ def convert_image_to_pdf(image_path, output_path):
 
 
 def create_pdf_from_images(image_paths, output_path):
-    """Tạo PDF từ danh sách ảnh - Xử lý tăng sáng/tương phản ở backend, đa luồng
+    """Tạo PDF từ danh sách ảnh - Auto-crop + xử lý tăng sáng/tương phản ở backend, đa luồng
 
-    Backend xử lý: tăng sáng, tương phản, sharpening (chuyển từ frontend xuống)
-    Giữ nguyên độ phân giải và tỉ lệ 1:1
+    Backend xử lý:
+    1. Auto-crop tài liệu (phát hiện góc, warp perspective)
+    2. Tăng sáng, tương phản, sharpening
+    3. Tạo PDF từ ảnh đã xử lý
     Tối ưu: Multi-threading batch processing
     """
     import time
@@ -460,18 +462,17 @@ def create_pdf_from_images(image_paths, output_path):
                 pil_images.append(img)
             except Exception as e:
                 print(f"[PDF] Warning: Could not open image {path}: {e}")
-                # Skip invalid images but continue processing
-        
+
         if not pil_images:
             print("[PDF] Error: No valid images to process")
             return False
-            
+
         print(f"[PDF] Step 1 - Opened {len(pil_images)} images in {time.time() - step_start:.3f}s")
 
         step_start = time.time()
-        # Xử lý batch song song với đa luồng
-        processed_images = img_processor.process_scanned_images_batch(pil_images)
-        print(f"[PDF] Step 2 - Batch processed images in {time.time() - step_start:.3f}s")
+        # Xử lý batch song song với auto-crop
+        processed_images = img_processor.process_scanned_images_batch_with_crop(pil_images)
+        print(f"[PDF] Step 2 - Batch processed images (with auto-crop) in {time.time() - step_start:.3f}s")
 
         # Verify all images were processed
         if len(processed_images) != len(pil_images):

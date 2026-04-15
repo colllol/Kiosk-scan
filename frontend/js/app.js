@@ -3,6 +3,15 @@
  * Entry point that initializes all components
  */
 
+import { CONFIG, state } from './config.js';
+import { ImageStore } from './models/ImageModel.js';
+import { Camera } from './components/Camera.js';
+import { Capture } from './components/Capture.js';
+import { ImageList } from './components/ImageList.js';
+import { Lightbox } from './components/Lightbox.js';
+import { Toast } from './components/Toast.js';
+import { Api } from './components/Api.js';
+
 class App {
     constructor() {
         this.elements = {
@@ -141,8 +150,4 @@ class App {
     }
 }
 
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    window.App = new App();
-    window.App.init();
-});
+export { App };

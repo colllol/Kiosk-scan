@@ -126,4 +126,4 @@ class ImageList {
     }
 }
 
-window.ImageList = ImageList;
+export { ImageList };

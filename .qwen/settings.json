@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(pip install *)",
-      "Bash(ping *)"
+      "Bash(ping *)",
+      "Bash(call *)"
     ]
   },
   "$version": 3

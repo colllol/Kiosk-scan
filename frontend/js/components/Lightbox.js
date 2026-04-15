@@ -1,6 +1,7 @@
 /**
  * Lightbox Component - Handles image preview with zoom support
  */
+import { state } from '../config.js';
 
 class Lightbox {
     constructor(elements, imageStore) {
@@ -165,5 +166,4 @@ class Lightbox {
     }
 }
 
-// Export for global use
-window.Lightbox = Lightbox;
+export { Lightbox };

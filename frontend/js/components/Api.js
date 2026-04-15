@@ -1,6 +1,8 @@
 /**
 API Component - OPTIMIZED upload
 */
+import { CONFIG, state } from '../config.js';
+
 class Api {
     constructor(imageStore, elements) {
         this.imageStore = imageStore;
@@ -306,4 +308,4 @@ class Api {
     }
 }
 
-window.Api = Api;
+export { Api };

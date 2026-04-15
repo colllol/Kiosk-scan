@@ -126,6 +126,4 @@ window.sendToBackend = async (imageModel) => {
     }
 };
 
-// Export for global use
-window.ImageModel = ImageModel;
-window.ImageStore = ImageStore;
+export { ImageModel, ImageStore };
