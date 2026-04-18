@@ -18,8 +18,8 @@ class Camera {
                     height: { ideal: 2160 },
                     // Yêu cầu góc nhìn rộng nhất
                     advanced: [
-                        { focusMode: 'continuous' },  // Tự động chỉnh tiêu cự liên tục
-                        { focusDistance: { min: 0, max: 1 } }  // Cho phép điều chỉnh khoảng cách
+                        { focusMode: '0.27' },  // Tự động chỉnh tiêu cự liên tục
+                        { focusDistance: { min: 0, max: 2 } }  // Cho phép điều chỉnh khoảng cách
                     ]
                 },
                 audio: false
@@ -37,10 +37,10 @@ class Camera {
                 // Cấu hình để video lấp đầy khung camera
                 this.elements.video.style.width = '100%';
                 this.elements.video.style.height = '100%';
-                this.elements.video.style.objectFit = 'cover'; // Kéo dãn lấp đầy, không viền đen
+                this.elements.video.style.objectFit = 'contain'; // Kéo dãn lấp đầy, không viền đen
                 
                 // Tăng độ sáng cho video (1.2 là 120% độ sáng, có thể điều chỉnh)
-                this.elements.video.style.filter = 'brightness(1.1) contrast(1.1)';
+                this.elements.video.style.filter = 'brightness(1.2) contrast(1.2)';
 
                 this.elements.video.play();
                 

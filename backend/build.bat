@@ -36,8 +36,6 @@ pyinstaller --onedir ^
 --hidden-import=reportlab.lib.utils ^
 --hidden-import=print_ticket ^
 --hidden-import=image_processor ^
---add-data "uploads;uploads" ^
---add-data "pdfs;pdfs" ^
 --add-data "print_ticket.py;." ^
 --add-data "image_processor.py;." ^
 main.py
