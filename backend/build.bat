@@ -10,11 +10,14 @@ if exist "main.spec" del /q "main.spec"
 
 REM Using --onedir instead of --onefile for faster startup
 REM --onedir keeps files unpacked, so no extraction delay on startup
+echo Current directory: %cd%
+dir main.py
 pyinstaller --onedir ^
 --clean ^
 --name "WebcamScan" ^
 --optimize=1 ^
 --noconfirm ^
+--noupx ^
 --collect-all numpy ^
 --collect-all PIL ^
 --collect-all escpos ^
