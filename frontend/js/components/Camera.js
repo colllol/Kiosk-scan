@@ -1,6 +1,8 @@
 /**
 Camera Component - Handles camera initialization and management
 */
+import { state } from '../config.js';
+
 class Camera {
     constructor(elements) {
         this.elements = elements;
@@ -12,13 +14,13 @@ class Camera {
             const constraints = {
                 video: {
                     facingMode: { ideal: 'environment' },
-                    width: { ideal: 4608 },
-                    height: { ideal: 3456 },
+                    width: { ideal: 3840 },
+                    height: { ideal: 2160 },
                     // Yêu cầu góc nhìn rộng nhất
-                    advanced: [
-                        { focusMode: 'continuous' },  // Tự động chỉnh tiêu cự liên tục
-                        { focusDistance: { min: 0, max: 1 } }  // Cho phép điều chỉnh khoảng cách
-                    ]
+                    // advanced: [
+                    //     { focusMode: '0.27' },  // Tự động chỉnh tiêu cự liên tục
+                    //     { focusDistance: { min: 0, max: 2 } }  // Cho phép điều chỉnh khoảng cách
+                    // ]
                 },
                 audio: false
             };
@@ -29,23 +31,28 @@ class Camera {
             this.elements.video.srcObject = this.stream;
 
             this.elements.video.onloadedmetadata = () => {
-                // Xoay video 90 độ để khớp với hướng đặt camera
-                this.elements.video.style.transform = 'rotate(-90deg)';
-                
-                // Cấu hình để video lấp đầy khung camera
-                this.elements.video.style.width = '100%';
-                this.elements.video.style.height = '100%';
-                this.elements.video.style.objectFit = 'contain'; // Thay 'container' bằng 'cover' để lấp đầy
-                
-                // Tăng độ sáng cho video (1.2 là 120% độ sáng, có thể điều chỉnh)
-                this.elements.video.style.filter = 'brightness(1.1) contrast(1.1)';
+                const video = this.elements.video;
+                const container = video.parentElement;
 
-                this.elements.video.play();
-                
-                // Check camera capabilities after initialization
+                const { videoWidth, videoHeight } = video;
+
+                // Tính tỉ lệ hiển thị sau khi xoay 90 độ
+                const rotatedAspectRatio = videoHeight / videoWidth;
+
+                // Áp dụng aspect-ratio cho container
+                container.style.aspectRatio = String(rotatedAspectRatio);
+                container.style.height = 'auto';          // bỏ chiều cao cố định
+                container.style.maxHeight = '100%';       // giới hạn nếu cần
+
+                // Thiết lập video
+                video.style.transform = 'rotate(-90deg)';
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.style.objectFit = 'contain';        // hoặc cover, fill – kết quả như nhau
+
+                video.play();
                 this.checkCameraCapabilities();
             };
-
             window.App?.toast?.show('Camera đã sẵn sàng', 'success');
             return true;
         } catch (error) {
@@ -124,5 +131,5 @@ class Camera {
         return this.setFocus('continuous');
     }
 }
-// Export for global use
-window.Camera = Camera;
+
+export { Camera };

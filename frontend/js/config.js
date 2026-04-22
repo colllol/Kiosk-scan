@@ -2,8 +2,9 @@
 Configuration for Webcam Scan Document App
 */
 const CONFIG = {
-    MAX_WIDTH: 4608,          // Giữ nguyên độ phân giải cao
-    JPEG_QUALITY: 0.95,       // Chất lượng cao (95%) để backend xử lý tốt hơn
+    MAX_WIDTH: 3840,          // Giảm xuống Full HD để tăng tốc độ
+    MAX_HEIGHT: 2160,
+    JPEG_QUALITY: 0.95,
     VIRTUAL_SCROLL_THRESHOLD: 50,
     API_UPLOAD: 'http://localhost:5000/api/upload',
     API_EXPORT: 'http://localhost:5000/api/export',
@@ -25,3 +26,5 @@ const state = {
     pinchStartDistance: 0,
     currentScale: 1
 };
+
+export { CONFIG, state };

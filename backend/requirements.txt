@@ -4,7 +4,6 @@ python-multipart
 Pillow
 reportlab
 numpy
-scipy
 opencv-python
 requests
 python-escpos

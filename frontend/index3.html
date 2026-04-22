@@ -46,11 +46,7 @@
         padding: 10px;
         flex-wrap: wrap;
       }
-#video {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
+
       
       /* Responsive cho màn hình nhỏ */
       @media (max-width: 768px) {
@@ -159,12 +155,13 @@
                         <span>Xóa tất cả</span>
                     </button>
                     <button id="pdf-btn"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        style="display: none;">
                         <i class="fas fa-file-pdf"></i>
                         <span>Lấy số thứ tự</span>
                     </button>
-                    
-                        <select title="serviceID" style=" height: 40px; font-size: 15px; color: #000; background-color: #fff;" id="service-select" class="combo-box">
+
+                        <select title="serviceID" style="display: none;" id="service-select" class="combo-box">
                             <option value="#">Chọn dịch vụ </option>
                             <option value="1">Kinh tế - Xã hội</option>
                             <option value="2">Tư pháp - Hộ tịch</option>
@@ -173,6 +170,12 @@
                             <option value="5">Kế toán - Tài chính</option>
                             <option value="6">Giáo dục - Y tế</option>
                         </select>
+
+                    <button id="certify-btn"
+                        class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2">
+                        <i class="fas fa-certificate"></i>
+                        <span>Chứng thực tài liệu</span>
+                    </button>
                     
                 </div>
             </div>
@@ -228,15 +231,36 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-    <script src="js/config.js"></script>
-    <script src="js/models/ImageModel.js"></script>
-    <script src="js/components/Camera.js"></script>
-    <script src="js/components/Capture.js"></script>
-    <script src="js/components/ImageList.js"></script>
-    <script src="js/components/Lightbox.js"></script>
-    <script src="js/components/Toast.js"></script>
-    <script src="js/components/Api.js"></script>
-    <script src="js/app.js"></script>
-</body>
+    <script type="module">
+        import { CONFIG, state } from './js/config.js';
+        import { Capture } from './js/components/Capture.js';
+        import { ImageModel, ImageStore } from './js/models/ImageModel.js';
+        import { Camera } from './js/components/Camera.js';
+        import { ImageList } from './js/components/ImageList.js';
+        import { Lightbox } from './js/components/Lightbox.js';
+        import { Toast } from './js/components/Toast.js';
+        import { Api } from './js/components/Api.js';
+        import { App } from './js/app.js';
 
+        // Export to window for inline handlers
+        window.CONFIG = CONFIG;
+        window.state = state;
+        window.Capture = Capture;
+        window.ImageModel = ImageModel;
+        window.ImageStore = ImageStore;
+        window.Camera = Camera;
+        window.ImageList = ImageList;
+        window.Lightbox = Lightbox;
+        window.Toast = Toast;
+        window.Api = Api;
+        window.App = App;
+
+        // Initialize app when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = new App();
+            window.App = app;
+            app.init();
+        });
+    </script>
+</body>
 </html>
