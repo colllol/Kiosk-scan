@@ -19,6 +19,10 @@
   let apiDataCache = null;
   let overlayShown = false; // Prevent duplicate overlay
 
+  // Tối ưu: Cache folder và latest PDF
+  let folderCache = { handle: null, name: null, lastScan: 0, latestPdf: null };
+  const CACHE_TTL = 30000; // 30 giây cache
+
   // IndexedDB for folder handle (accessed directly from content script)
   const DB_NAME = 'AutoFillFormDB';
   const DB_VERSION = 1;
@@ -575,49 +579,100 @@
             return;
           }
 
+          // Cập nhật cache folder
+          folderCache.handle = handle;
+          folderCache.name = name;
+
           btn.disabled = true;
           btn.textContent = '⏳ Đang upload...';
         }
 
-        // === BƯỚC 2: Tìm file mới nhất ===
-        showOverlayStatus('⏳ Đang tìm file...', 'info');
+        // === TỐI ƯU: Kiểm tra cache trước ===
+        const now = Date.now();
         let latestFile = null;
         let latestDate = new Date(0);
+        
+        if (folderCache.handle && folderCache.name === name && 
+            folderCache.latestPdf && (now - folderCache.lastScan) < CACHE_TTL) {
+          // Sử dụng cache nếu còn hiệu lực
+          console.log('[AutoFill] Using cached PDF:', folderCache.latestPdf.name);
+          latestFile = folderCache.latestPdf;
+        } else {
+          // === BƯỚC 2: Tìm file PDF mới nhất (TỐI ƯU) ===
+          showOverlayStatus('⏳ Đang tìm file PDF...', 'info');
+          let foundFiles = 0;
 
-        for await (const entry of handle.values()) {
-          if (entry.kind === 'file') {
-            const file = await entry.getFile();
-            const ln = entry.name.toLowerCase();
-            if (ln.endsWith('.pdf') || ln.endsWith('.jpg') || ln.endsWith('.jpeg') || ln.endsWith('.png')) {
-              if (file.lastModified > latestDate.getTime()) {
-                latestDate = new Date(file.lastModified);
-                latestFile = { handle: entry, file, name: entry.name, size: file.size };
+          // Tối ưu: Sử dụng Promise.all để parallel resolve handles
+          const entries = [];
+          for await (const entry of handle.values()) {
+            if (entry.kind === 'file') {
+              const ln = entry.name.toLowerCase();
+              if (ln.endsWith('.pdf')) {
+                foundFiles++;
+                entries.push(entry);
+                if (foundFiles > 50) break; // Giới hạn scanning để tránh chậm
               }
             }
           }
+
+          // Parallel lấy metadata cho các file PDF tìm thấy
+          if (entries.length > 0) {
+            const fileMetas = await Promise.all(
+              entries.slice(0, 20).map(async (entry) => {
+                try {
+                  const file = await entry.getFile();
+                  return { handle: entry, file, name: entry.name, lastModified: file.lastModified };
+                } catch {
+                  return null;
+                }
+              })
+            );
+
+            // Tìm file mới nhất
+            for (const fm of fileMetas) {
+              if (fm && fm.lastModified > latestDate.getTime()) {
+                latestDate = new Date(fm.lastModified);
+                latestFile = fm;
+              }
+            }
+          }
+
+          // Cập nhật cache nếu tìm thấy file
+          if (latestFile) {
+            folderCache.handle = handle;
+            folderCache.name = name;
+            folderCache.lastScan = Date.now();
+            folderCache.latestPdf = latestFile;
+            console.log('[AutoFill] PDF cached:', latestFile.name);
+          }
         }
 
+        // === Kiểm tra kết quả ===
         if (!latestFile) {
-          showOverlayStatus('❌ Không tìm thấy file PDF/JPG/PNG trong thư mục', 'error');
+          showOverlayStatus('❌ Không tìm thấy file PDF trong thư mục', 'error');
           btn.disabled = false;
           btn.textContent = '📤 Tải tài liệu lên';
           processing = false;
           return;
         }
 
-        console.log('[AutoFill] Found file:', latestFile.name);
-        showOverlayStatus('⏳ Đang upload: ' + latestFile.name, 'info');
+        console.log('[AutoFill] Found PDF:', latestFile.name, '(modified:', new Date(latestFile.lastModified).toLocaleString(), ')');
+        showOverlayStatus('⏳ Upload: ' + latestFile.name, 'info');
 
-        // === BƯỚC 3: Upload vào form ===
-        const fileData = await latestFile.file;
-        const arrayBuffer = await fileData.arrayBuffer();
-        const byteArray = Array.from(new Uint8Array(arrayBuffer));
-
-        uploadFileToInput(latestFile.name, byteArray, fileData.type || 'application/octet-stream', (uploadSuccess) => {
+        // === BƯỚC 3: Upload vào form (TỐI ƯU) ===
+        // Tối ưu: Đọc file trực tiếp, không qua ArrayBuffer trung gian
+        const file = latestFile.file;
+        const fileName = latestFile.name;
+        
+        // Sử dụng FileReaderSync hoặc async để đọc nhanh hơn
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Tối ưu: Truyền trực tiếp ArrayBuffer thay vì Uint8Array để giảm bước chuyển đổi
+        uploadFileToInput(fileName, arrayBuffer, file.type || 'application/pdf', (uploadSuccess) => {
           if (uploadSuccess) {
             showOverlayStatus('✅ Upload thành công!', 'success');
             chrome.runtime.sendMessage({ action: 'uploadCompleted', success: true });
-            setTimeout(() => removeUploadOverlay(), 2000);
+            setTimeout(() => removeUploadOverlay(), 1500);
           } else {
             showOverlayStatus('❌ Upload thất bại', 'error');
             btn.disabled = false;
@@ -666,18 +721,19 @@
       }
 
       const fileInput = fileInputs[0];
-      const uint8Array = new Uint8Array(fileData);
-      const blob = new Blob([uint8Array], { type: fileType });
+      // Tối ưu: Blob có thể nhận trực tiếp ArrayBuffer mà không cần chuyển Uint8Array
+      const blob = new Blob([fileData], { type: fileType });
       const file = new File([blob], fileName, { type: fileType });
 
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(file);
       fileInput.files = dataTransfer.files;
 
-      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-      fileInput.dispatchEvent(new Event('input', { bubbles: true }));
+      // Dispatch events
+      fileInput.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+      fileInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
 
-      console.log('[AutoFill] ✅ File uploaded to input:', fileName);
+      console.log('[AutoFill] ✅ File uploaded:', fileName, 'type:', fileType);
       hasUploadedFile = true;
 
       chrome.runtime.sendMessage({ action: 'uploadCompleted', success: true, fileName });
