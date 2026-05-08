@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Modules</title>
+</head>
+<body>
+    <h1>Testing Chrome Extension Modules</h1>
+    <div id="status">Loading modules...</div>
+    
+    <script>
+        // Test if modules are loaded
+        function testModules() {
+            const status = document.getElementById('status');
+            const modules = [
+                { name: 'URL_SCANNER', obj: window.URL_SCANNER },
+                { name: 'FORM_FILLER', obj: window.FORM_FILLER },
+                { name: 'DIALOG_HANDLER', obj: window.DIALOG_HANDLER },
+                { name: 'COMPONENT_WORKFLOW', obj: window.COMPONENT_WORKFLOW },
+                { name: 'OVERLAY_HANDLER', obj: window.OVERLAY_HANDLER }
+            ];
+            
+            let html = '<h2>Module Status:</h2><ul>';
+            let allLoaded = true;
+            
+            modules.forEach(module => {
+                if (module.obj && typeof module.obj === 'object') {
+                    html += `<li style="color: green;">✅ ${module.name} - Loaded</li>`;
+                } else {
+                    html += `<li style="color: red;">❌ ${module.name} - Not loaded</li>`;
+                    allLoaded = false;
+                }
+            });
+            
+            html += '</ul>';
+            
+            if (allLoaded) {
+                html += '<div style="color: green; font-weight: bold;">✅ All modules loaded successfully!</div>';
+            } else {
+                html += '<div style="color: red; font-weight: bold;">❌ Some modules failed to load</div>';
+            
+            if (allLoaded) {
+                html += '<div style="color: green; font-weight: bold;">✅ All modules loaded successfully!</div>';
+            } else {
+                html += '<div style="color: red; font-weight: bold;">❌ Some modules failed to load</div>';
+            }
+            
+            status.innerHTML = html;
+        }
+        
+        // Run test after a short delay
+        setTimeout(testModules, 1000);
+    </script>
+</body>
+</html>

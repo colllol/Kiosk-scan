@@ -1,0 +1,71 @@
+# Image folders
+backend/uploads/
+frontend/uploads/
+
+# PDF folders
+backend/pdfs/
+frontend/pdfs/
+
+# Temp / staging
+backend/train_staging/
+backend/tmp/
+backend/cache/
+
+# Image files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+
+# PDF files
+*.pdf
+
+# AI models / heavy files
+*.pt
+*.onnx
+*.pth
+*.h5
+
+# Archives
+*.zip
+*.rar
+*.7z
+*.tar
+
+# Executables
+*.exe
+*.dll
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environment
+venv/
+env/
+.env/
+
+# Bundled Python deployment (too large for git)
+backend/deployment/_internal/
+
+# Build artifacts
+build/
+dist/
+*.spec
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Large video files (exceed GitHub 100 MB limit)
+frontend/video/*.mp4
+
+# QWEN
+*.qwen/

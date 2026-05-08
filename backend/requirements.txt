@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+Pillow
+reportlab
+numpy
+opencv-python
+requests
+python-escpos
+pywin32
+ultralytics
+pytesseract
+rembg[cpu]

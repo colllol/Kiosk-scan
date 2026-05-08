@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="referrer" content="no-referrer-when-downgrade">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: http: data: blob: 'unsafe-inline' 'unsafe-eval';
+                   frame-src 'self' https: http: www.youtube.com www.youtube-nocookie.com player.vimeo.com;
+                   media-src 'self' https: http: data: blob:;">
+    <title>Webcam Scan Tài liệu</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .video-section {
+            height: 30vh;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .video-section video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Custom Video Controls - Transparent */
+        .video-controls {
+            height: 50px;
+            background: rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .ctrl-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 6px 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .volume-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 70px;
+            height: 3px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.25);
+            outline: none;
+            cursor: pointer;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+        }
+
+        .volume-slider::-moz-range-thumb {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            border: none;
+        }
+
+        .timeline-section {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timeline-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+            transition: height 0.2s;
+        }
+
+        .timeline-bar:hover {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .timeline-progress {
+            height: 100%;
+            background: rgba(33, 150, 243, 0.8);
+            border-radius: 2px;
+            width: 0%;
+            position: relative;
+            transition: width 0.1s linear;
+        }
+
+        .timeline-thumb {
+            position: absolute;
+            right: -5px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .timeline-bar:hover .timeline-thumb {
+            opacity: 1;
+        }
+
+        .timeline-time {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 11px;
+            font-family: monospace;
+            min-width: 36px;
+            text-align: center;
+            user-select: none;
+        }
+
+        /* Video list overlay */
+        .video-list-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            flex-direction: column;
+            padding: 10px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        .video-list-overlay.active {
+            display: flex;
+        }
+
+        .video-list-title {
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            padding: 5px;
+        }
+
+        .video-list-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 5px;
+        }
+
+        .video-list-item:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateX(5px);
+        }
+
+        .video-list-item.playing {
+            background: #2196F3;
+        }
+
+        .video-list-item-thumbnail {
+            width: 60px;
+            height: 40px;
+            background: #333;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .video-list-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .video-list-item-title {
+            color: white;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .video-list-item-index {
+            color: #aaa;
+            font-size: 11px;
+        }
+
+        .video-list-item.playing .video-list-item-index {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .video-list-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 11;
+            transition: background 0.2s;
+        }
+
+        .video-list-close:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Features section */
+        .features-section {
+            height: 70vh;
+            background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85));
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #1a1a1a;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            flex: 1;
+            align-content: center;
+        }
+
+        .feature-card {
+            background: white;
+            border: 2px solid #2196F3;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            min-height: 150px;
+        }
+
+        .feature-card:hover {
+            background: #2196F3;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+
+        .feature-card:hover .feature-icon {
+            background: white;
+        }
+
+        .feature-icon {
+            width: 64px;
+            height: 64px;
+            background: #2196F3;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card h3 {
+            font-size: clamp(16px, 2vw, 20px);
+            font-weight: 600;
+        }
+
+        .feature-card p {
+            color: #666;
+            font-size: clamp(12px, 1.5vw, 14px);
+        }
+
+        .feature-card:hover p {
+            color: #e0e0e0;
+        }
+
+        .external-link::after {
+            content: ' ↗';
+            font-size: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+                gap: 10px;
+            }
+            .video-section {
+                height: 25vh;
+            }
+            .features-section {
+                height: 75vh;
+                padding: 15px;
+            }
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            .feature-card {
+                padding: 20px;
+                min-height: 120px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Video Section - 30% -->
+        <div class="video-section">
+            <div class="video-wrapper">
+                <video id="local-video" width="100%" height="100%" playsinline autoplay muted loop preload="auto">
+                    Trình duyệt của bạn không hỗ trợ thẻ video.
+                </video>
+            </div>
+
+            <!-- Custom Video Controls - Transparent -->
+            <div class="video-controls">
+                <button class="ctrl-btn" id="playPauseBtn" title="Play/Pause">▶</button>
+
+                <div class="volume-control">
+                    <button class="ctrl-btn" id="muteBtn" title="Tắt tiếng">🔊</button>
+                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" step="0.05" value="0.5">
+                </div>
+
+                <div class="timeline-section">
+                    <span class="timeline-time" id="timelineCurrent">0:00</span>
+                    <div class="timeline-bar" id="timelineBar">
+                        <div class="timeline-progress" id="timelineProgress">
+                            <div class="timeline-thumb"></div>
+                        </div>
+                    </div>
+                    <span class="timeline-time" id="timelineDuration">0:00</span>
+                </div>
+
+                <button class="ctrl-btn" id="videoListBtn" title="Chọn video">⚙️</button>
+            </div>
+
+            <div class="video-list-overlay" id="videoListOverlay">
+                <button class="video-list-close" id="videoListClose">✕</button>
+                <div class="video-list-title">📺 Danh sách video</div>
+                <div id="videoListContainer"></div>
+            </div>
+        </div>
+
+        <!-- Features Section - 70% -->
+        <div class="features-section">
+            <div class="section-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                Chức năng
+            </div>
+
+            
+               <div class="features-grid">
+                <div class="feature-card" data-service-id="99" data-service-name="Tư pháp - Hộ tịch">
+                    <div class="feature-icon">⚖️</div>
+                    <h3>Tư pháp - Hộ tịch  ( Cường) </h3>
+                    <p>Quầy số 1</p>
+                </div>
+
+                <div class="feature-card" data-service-id="2" data-service-name="Tư pháp - Hộ tịch">
+                    <div class="feature-icon">⚖️</div>
+                    <h3>Tư pháp - Hộ tịch ( Nga) </h3>
+                    <p>Quầy số 2</p>
+                </div>
+
+                <div class="feature-card" data-service-id="3" data-service-name="Địa chính - Xây dựng">
+                    <div class="feature-icon">🏗️</div>
+                    <h3>Tài nguyên - Đất đai - Môi trường ( Bạch Trang) </h3>
+                    <p>Quầy số 3</p>
+                </div>
+
+                    <div class="feature-card" data-service-id="4" data-service-name="Kinh tế - Xã hội">
+                    <div class="feature-icon">📊</div>
+                    <h3>Kinh tế - Kinh doanh  ( Phương) </h3>
+                    <p>Quay số 4</p>
+                </div>
+
+                <div class="feature-card" data-service-id="5" data-service-name="Văn hóa - Thông tin">
+                    <div class="feature-icon">🎭</div>
+                    <h3>Văn hóa - Xã hội - Chính sách ( Huyền Trang)</h3>
+                    <p>Quầy số 5</p>
+                </div>
+
+               
+
+                <a href="index2.html" class="feature-card">
+                    <div class="feature-icon">💳</div>
+                    <h3>Dịch vụ chứng thực</h3>
+                    <p>Cắm thẻ căn cước</p>
+                </a>
+
+                <a href="https://dichvucong.gov.vn/" class="feature-card external-link" target="_blank"
+                    rel="noopener noreferrer">
+                    <div class="feature-icon">🌐</div>
+                    <h3>Dịch vụ công</h3>
+                    <p>Truy cập ngay</p>
+                </a>
+
+
+            </div>
+        </div>
+
+        <script>
+            const VIDEO_LIST = [
+                { src: 'video/VIDIEO 25 DỊCH VỤ CÔNG.mp4', title: '25 Dịch vụ công' },
+                { src: 'video/HUONG DAN CACH DIEN TO KHAI DANG KY KET HON.mp4', title: 'HUONG DAN CACH DIEN TO KHAI DANG KY KET HON' },
+                { src: 'video/HD nộp DVC.mp4', title: 'HD nộp DVC' },
+                { src: 'video/0116.mp4', title: '0116'}
+            ];
+
+            const video = document.getElementById('local-video');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const muteBtn = document.getElementById('muteBtn');
+            const volumeSlider = document.getElementById('volumeSlider');
+            const videoListBtn = document.getElementById('videoListBtn');
+            const videoListOverlay = document.getElementById('videoListOverlay');
+            const videoListContainer = document.getElementById('videoListContainer');
+            const videoListClose = document.getElementById('videoListClose');
+            const timelineBar = document.getElementById('timelineBar');
+            const timelineProgress = document.getElementById('timelineProgress');
+            const timelineCurrent = document.getElementById('timelineCurrent');
+            const timelineDuration = document.getElementById('timelineDuration');
+            let currentVideoIndex = 0;
+            let isVideoListVisible = false;
+            let isDragging = false;
+
+            function formatTime(seconds) {
+                if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            playPauseBtn.addEventListener('click', () => {
+                if (video.paused) {
+                    video.play();
+                    playPauseBtn.textContent = '⏸';
+                } else {
+                    video.pause();
+                    playPauseBtn.textContent = '▶';
+                }
+            });
+
+            video.addEventListener('play', () => { playPauseBtn.textContent = '⏸'; });
+            video.addEventListener('pause', () => { playPauseBtn.textContent = '▶'; });
+
+            muteBtn.addEventListener('click', () => {
+                video.muted = !video.muted;
+                muteBtn.textContent = video.muted ? '🔇' : '🔊';
+            });
+
+            volumeSlider.addEventListener('input', (e) => {
+                video.volume = e.target.value;
+                video.muted = (e.target.value == 0);
+                muteBtn.textContent = (e.target.value == 0) ? '🔇' : '🔊';
+            });
+
+            videoListBtn.addEventListener('click', () => {
+                isVideoListVisible ? hideVideoList() : showVideoList();
+            });
+
+            function updateTimeline() {
+                if (video.duration) {
+                    const percent = (video.currentTime / video.duration) * 100;
+                    timelineProgress.style.width = percent + '%';
+                    timelineCurrent.textContent = formatTime(video.currentTime);
+                }
+            }
+
+            function seekTo(e) {
+                const rect = timelineBar.getBoundingClientRect();
+                const pos = (e.clientX || e.touches[0].clientX) - rect.left;
+                const percent = Math.max(0, Math.min(1, pos / rect.width));
+                if (video.duration) {
+                    video.currentTime = percent * video.duration;
+                    timelineProgress.style.width = (percent * 100) + '%';
+                    timelineCurrent.textContent = formatTime(video.currentTime);
+                }
+            }
+
+            timelineBar.addEventListener('click', seekTo);
+            timelineBar.addEventListener('mousedown', (e) => { isDragging = true; seekTo(e); });
+            document.addEventListener('mousemove', (e) => { if (isDragging) seekTo(e); });
+            document.addEventListener('mouseup', () => { isDragging = false; });
+            timelineBar.addEventListener('touchstart', (e) => { isDragging = true; seekTo(e); });
+            document.addEventListener('touchmove', (e) => { if (isDragging) seekTo(e); });
+            document.addEventListener('touchend', () => { isDragging = false; });
+
+            video.addEventListener('timeupdate', updateTimeline);
+            video.addEventListener('loadedmetadata', () => {
+                timelineDuration.textContent = formatTime(video.duration);
+                timelineProgress.style.width = '0%';
+                timelineCurrent.textContent = '0:00';
+            });
+            video.addEventListener('ended', () => {
+                timelineProgress.style.width = '100%';
+                timelineCurrent.textContent = formatTime(video.duration);
+            });
+
+            function renderVideoList() {
+                videoListContainer.innerHTML = '';
+                VIDEO_LIST.forEach((videoItem, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'video-list-item' + (index === currentVideoIndex ? ' playing' : '');
+                    item.innerHTML = `
+                        <div class="video-list-item-thumbnail">▶</div>
+                        <div class="video-list-item-info">
+                            <div class="video-list-item-title">${videoItem.title}</div>
+                            <div class="video-list-item-index">${index === currentVideoIndex ? '▶ Đang phát' : 'Video ' + (index + 1)}</div>
+                        </div>`;
+                    item.addEventListener('click', () => playVideo(index));
+                    videoListContainer.appendChild(item);
+                });
+            }
+
+            function playVideo(index) {
+                if (index < 0 || index >= VIDEO_LIST.length) return;
+                currentVideoIndex = index;
+                video.src = VIDEO_LIST[index].src;
+                video.muted = true;
+                video.play().then(() => { video.muted = false; }).catch(() => { video.muted = true; video.play(); });
+                renderVideoList();
+                hideVideoList();
+            }
+
+            function showVideoList() {
+                renderVideoList();
+                videoListOverlay.classList.add('active');
+                isVideoListVisible = true;
+            }
+
+            function hideVideoList() {
+                videoListOverlay.classList.remove('active');
+                isVideoListVisible = false;
+            }
+
+            videoListClose.addEventListener('click', hideVideoList);
+            video.addEventListener('ended', () => { if (VIDEO_LIST.length > 1) showVideoList(); });
+
+            window.addEventListener('load', () => {
+                if (VIDEO_LIST.length > 0) playVideo(0);
+            });
+
+            document.querySelectorAll('.feature-card[data-service-id]').forEach(card => {
+                card.addEventListener('click', async function () {
+                    const serviceId = this.dataset.serviceId;
+                    const serviceName = this.dataset.serviceName;
+                    const TICKET_API = 'http://localhost:5000/api/ticket';
+                    try {
+                        const response = await fetch(TICKET_API, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ serviceId: parseInt(serviceId), serviceName })
+                        });
+                        // if (response.ok) {
+                        //     const data = await response.json();
+                        //     alert(`Số thứ tự: ${data.ticketNumber}\nDịch vụ: ${serviceName}\n\nĐã gửi lệnh in!`);
+                        // } else {
+                        //     const error = await response.json();
+                        //     alert(`Lỗi: ${error.message || 'Không thể lấy số thứ tự'}`);
+                        // }
+                    } catch (error) {
+                        alert(`Lỗi kết nối: ${error.message}`);
+                    }
+                });
+            });
+        </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "apiEndpoints": {
+    "backend": "http://localhost:5000",
+    "queueSystem": "http://27.71.20.120:2020/api/ticket/create"
+  },
+  "targetUrl": "https://dichvucong.thainguyen.gov.vn/thong-tin-cong-dan",
+  "backendSettings": {
+    "host": "0.0.0.0",
+    "port": 5000,
+    "uploadDir": "uploads",
+    "pdfDir": "pdfs"
+  },
+  "extensionSettings": {
+    "autoDetect": true,
+    "debugMode": false,
+    "timeout": 10000
+  }
+}

@@ -1,0 +1,5 @@
+# Auto-generated 2026-05-06 08:50:52.994335
+train: C:\Users\Admin\Downloads\Kiosk-scan\backend\train_dataset\images\train
+val: C:\Users\Admin\Downloads\Kiosk-scan\backend\train_dataset\images\val
+nc: 1
+names: ['document']

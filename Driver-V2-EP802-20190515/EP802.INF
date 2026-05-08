@@ -1,0 +1,131 @@
+; EP802 Printer Driver
+;
+; 2018/03/28 Version 1.0.0.0
+
+[Version]
+Signature="$Windows NT$"
+Provider=%PROD%
+ClassGUID={4D36E979-E325-11CE-BFC1-08002BE10318}
+Class=Printer
+DriverPackageType=PlugAndPlay
+DriverPackageDisplayName=%DESC%
+DriverVer=03/30/2018,1.0.0.0
+Catalogfile=EP802.cat
+
+[Manufacturer]
+%PROD%=EP802,NTamd64
+%PROD%=EP802,NTx86 
+
+; 
+; Model Specifications Section
+;
+[EP802.NTx86] 
+%PRINTM% = RMC800Printer.x86,USB\Vid_0519&Pid_2013
+
+[EP802.NTamd64] 
+%PRINTM% = RMC800Printer.amd64,USB\Vid_0519&Pid_2013
+
+;
+; Installer section(s) referenced above.
+;
+
+[RMC800Printer.x86]
+CopyFiles=@RMC800PrinterMon.dll,@RMC800Printer.gpd,@RMC800PrinterUI.dll,@RMC800PrinterUI.ini,@RMC800PrinterUni.dll,@RMC800RES.dll,@EServiceConsole.exe,@EPrinterService.exe
+DataSection=UNIDRV_DATA
+DataFile=RMC800Printer.gpd
+Include=NTPRINT.INF
+Needs=UNIDRV.OEM
+AddReg=EP802.AddReg.x86
+;DelReg=EP802.DelReg
+
+[RMC800Printer.amd64]
+CopyFiles=@RMC800PrinterMon.dll,@RMC800Printer.gpd,@RMC800PrinterUI.dll,@RMC800PrinterUI.ini,@RMC800PrinterUni.dll,@RMC800RES.dll,@EServiceConsole.exe,@EPrinterService.exe
+DataSection=UNIDRV_DATA
+DataFile=RMC800Printer.gpd
+Include=NTPRINT.INF
+Needs=UNIDRV.OEM
+AddReg=EP802.AddReg.amd64
+;DelReg=EP802.DelReg
+
+[RMC800Printer.HW.x86]
+AddReg=EP802.AddReg.x86
+[RMC800Printer.HW.amd64]
+AddReg=EP802.AddReg.amd64
+
+[DestinationDirs]
+DefaultDestDir=66000
+
+[SourceDisksNames.x86]
+1 = %DISK1%,,,\PrinterDriver32
+
+[SourceDisksNames.amd64]
+2 = %DISK1%,,,\PrinterDriver64
+
+[SourceDisksFiles.x86]
+RMC800PrinterMon.dll = 1
+RMC800Printer.gpd = 1
+RMC800PrinterUI.dll = 1
+RMC800PrinterUI.ini = 1
+RMC800PrinterUni.dll = 1
+RMC800RES.dll = 1
+EPrinterService.exe = 1
+EServiceConsole.exe = 1 
+
+[SourceDisksFiles.amd64]
+RMC800PrinterMon.dll = 2
+RMC800Printer.gpd = 2
+RMC800PrinterUI.dll = 2
+RMC800PrinterUI.ini = 2
+RMC800PrinterUni.dll = 2
+RMC800RES.dll = 2
+EPrinterService.exe = 2
+EServiceConsole.exe = 2 
+ 
+[DDInstall.Services]
+AddService=EPrinterService,,My_AddService_Name
+
+[My_AddService_Name]    
+DisplayName=EPrinterService   
+Description=EPrinterService   
+ServiceType=0x10   
+StartType=2   
+ErrorControl=0    
+;ServiceBinary=C:\EurocoinPrinters\EServiceConsole.exe EPrinterService
+ServiceBinary=%windir%\system32\spool\drivers\w32x86\3\EServiceConsole.exe EPrinterService
+
+
+[OEM URLS]
+%PROD%="http://www.eurocoin.co.uk/"
+
+[Strings]
+PROD="Eurocoin"
+DESC="EP802 Printer Driver"
+PRINTM="EP802" 
+DISK1="EP802 Printer Driver Setup Disk"
+windir= "%windir%"
+ 
+[EP802.AddReg.x86] 
+HKLM,"SOFTWARE\MSX800Printer","DriverName",0x0,"EP802 Printer Driver" 
+HKLM,"SOFTWARE\MSX800Printer","StatusServiceName",0x0,"EPrinterService" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","Description",0x0,"EPrinterService" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","DisplayName",0x0,"EPrinterService" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","ErrorControl",0x00010001,0x0
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","ImagePath",0x00020000,"%windir%\system32\spool\drivers\w32x86\3\EServiceConsole.exe EPrinterService" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","ObjectName",0x0,"LocalSystem" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","Start",0x00010001,0x2
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","Type",0x00010001,0x10
+;[EP802.DelReg] 
+;HKLM,"SOFTWARE\MSX800Printer"
+;HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService"
+
+[EP802.AddReg.amd64] 
+HKLM,"SOFTWARE\MSX800Printer","DriverName",0x0,"EP802 Printer Driver" 
+HKLM,"SOFTWARE\MSX800Printer","StatusServiceName",0x0,"EPrinterService" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","Description",0x0,"EPrinterService" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","DisplayName",0x0,"EPrinterService" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","ErrorControl",0x00010001,0x0
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","ImagePath",0x00020000,"%windir%\system32\spool\drivers\x64\3\EServiceConsole.exe EPrinterService" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","ObjectName",0x0,"LocalSystem" 
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","Start",0x00010001,0x2
+HKLM,"SYSTEM\CurrentControlSet\Services\EPrinterService","Type",0x00010001,0x10
+
