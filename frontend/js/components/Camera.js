@@ -45,10 +45,12 @@ class Camera {
                 container.style.maxHeight = '100%';       // giới hạn nếu cần
 
                 // Thiết lập video
-                video.style.transform = 'rotate(-90deg) scale(0.5)';  // Xoay và thu nhỏ
+                video.style.transform = 'scale(1)';
                 video.style.width = '100%';
                 video.style.height = '100%';
-                video.style.objectFit = 'contain';        // hoặc cover, fill – kết quả như nhau
+                video.style.maxWidth = 'none';
+                video.style.maxHeight = 'none';
+                video.style.objectFit = 'fill';
 
                 video.play();
                 this.checkCameraCapabilities();

@@ -109,8 +109,9 @@ uploaded_images = {}
 @app.on_event("startup")
 async def preload_models():
     """
-    Chạy pipeline xử lý ảnh với một ảnh dummy nhỏ để ép tất cả các model
-    (YOLO, rembg, pytesseract, ppocr-lite) tải vào RAM ngay từ đầu.
+    Chạy pipeline xử lý ảnh với một ảnh dummy nhỏ để ép các model
+    (YOLO, rembg, ppocr-lite) tải vào RAM ngay từ đầu.
+    Tesseract OSD đã được thay thế bằng OpenCV custom rotation (không cần preload).
     """
     try:
         # Tạo ảnh dummy 100x100 pixel màu trắng
@@ -121,7 +122,7 @@ async def preload_models():
             dummy_cv,
             mode="color",
             force_full=False,
-            enable_rotation=True,       # bắt buộc load Tesseract
+            enable_rotation=True,       # dùng OpenCV custom rotation (không cần Tesseract)
             enable_bg_removal=True,     # bắt buộc load rembg
             contour_method='canny',
             preprocess='clahe'
@@ -234,11 +235,6 @@ def get_next_stt(listpdfs_path, service_id: Optional[int] = None):
     return max_stt + 1
 
 def log_pdf_to_list(pdf_filename, listpdfs_path, serviceId=None, serviceName=None):
-    """
-    Ghi thông tin ticket vào _listpdfs.txt.
-    - Nếu pdf_filename là None (ticket-only, không tạo PDF): ghi 3 cột: STT | serviceId | serviceName
-    - Nếu pdf_filename có giá trị (có file PDF thật): ghi 4 cột: STT | filename | serviceId | serviceName
-    """
     try:
         os.makedirs(os.path.dirname(listpdfs_path), exist_ok=True)
         stt = get_next_stt(listpdfs_path, service_id=serviceId)
@@ -248,22 +244,13 @@ def log_pdf_to_list(pdf_filename, listpdfs_path, serviceId=None, serviceName=Non
             with open(listpdfs_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
         if not file_exists or not lines:
-            lines.append("STT   | ServiceId | ServiceName\n")
-            lines.append("-" * 40 + "\n")
-
-        if pdf_filename:
-            # Có file PDF: ghi 4 cột
-            service_info = f" | {serviceId} | {serviceName}" if serviceId else ""
-            lines.append(f"{stt:04d}| {pdf_filename}{service_info}\n")
-            print(f"Logged PDF to listpdfs: {pdf_filename} (STT: {stt:04d}, ServiceId: {serviceId})")
-        else:
-            # Ticket-only, không có PDF: ghi 3 cột
-            service_info = f"{serviceId} | {serviceName}" if serviceId else ""
-            lines.append(f"{stt:04d}| {service_info}\n")
-            print(f"Logged ticket to listpdfs (no PDF) (STT: {stt:04d}, ServiceId: {serviceId})")
-
+            lines.append("STT   | Ten File                              | ServiceId | ServiceName\n")
+            lines.append("-" * 70 + "\n")
+        service_info = f" | {serviceId} | {serviceName}" if serviceId else ""
+        lines.append(f"{stt:04d}| {pdf_filename}{service_info}\n")
         with open(listpdfs_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
+        print(f"Logged PDF to listpdfs: {pdf_filename} (STT: {stt:04d}, ServiceId: {serviceId})")
         return stt
     except Exception as e:
         print(f"Error logging PDF to listpdfs: {e}")
@@ -301,27 +288,18 @@ def get_latest_ticket_from_list(listpdfs_path: str):
                     stt = int(stt_str)
                 except Exception:
                     continue
-
-                num_cols = len(parts)
-                if num_cols == 3:
-                    # 3 cột: ticket-only (không có PDF) → STT | serviceId | serviceName
-                    filename = None
-                    sid_str = parts[1].strip()
-                    service_name = parts[2].strip() if len(parts) > 2 else None
-                else:
-                    # 4 cột: có PDF → STT | filename | serviceId | serviceName
-                    filename = parts[1].strip() if len(parts) > 1 else None
-                    sid_str = parts[2].strip() if len(parts) > 2 else ""
-                    service_name = parts[3].strip() if len(parts) > 3 else None
-
+                filename = parts[1].strip() if len(parts) > 1 else None
                 service_id = None
-                try:
-                    service_id = int(sid_str)
-                except ValueError:
-                    pass
-
-                # Chỉ lấy dòng có file PDF (4 cột), chọn STT lớn nhất
-                if filename is not None and (best_stt is None or stt > best_stt):
+                if len(parts) > 2:
+                    sid_str = parts[2].strip()
+                    try:
+                        service_id = int(sid_str)
+                    except ValueError:
+                        pass
+                service_name = None
+                if len(parts) > 3:
+                    service_name = parts[3].strip()
+                if best_stt is None or stt > best_stt:
                     best_stt = stt
                     best_filename = filename
                     best_service_id = service_id
@@ -553,83 +531,23 @@ async def export_pdf(request: ExportRequest, background_tasks: BackgroundTasks):
         print(f"Export error: {e}")
         raise HTTPException(status_code=500, detail=f"Lỗi export: {str(e)}")
 
-def find_pdf_in_list_files(pdf_filename: str):
-    """Tìm thông tin (STT, serviceId, serviceName) của một file PDF trong tất cả _listpdfs.txt."""
-    if not os.path.isdir(LISTPDF_DIR):
-        return None, None, None
-    for list_file in sorted(os.listdir(LISTPDF_DIR), reverse=True):
-        if not list_file.endswith("_listpdfs.txt"):
-            continue
-        list_path = os.path.join(LISTPDF_DIR, list_file)
-        stt, filename, service_id, service_name = get_latest_ticket_from_list(list_path)
-        if filename == pdf_filename:
-            return stt, service_id, service_name
-        # Nếu không tìm thấy chính xác, quét từng dòng
-        try:
-            with open(list_path, "r", encoding="utf-8") as f:
-                for raw in f.readlines():
-                    line = raw.strip()
-                    if not line or line.startswith("STT") or line.startswith("-") or "|" not in line:
-                        continue
-                    parts = line.split("|")
-                    num_cols = len(parts)
-                    if num_cols >= 4:
-                        fname = parts[1].strip()
-                        if fname == pdf_filename:
-                            stt_str = parts[0].strip()
-                            sid_str = parts[2].strip()
-                            sname = parts[3].strip() if len(parts) > 3 else None
-                            try:
-                                return int(stt_str), int(sid_str), sname
-                            except ValueError:
-                                pass
-        except Exception:
-            continue
-    return None, None, None
-
-
 @app.get("/api/latest-ticket")
-async def get_latest_ticket():  
+async def get_latest_ticket():
     try:
         current_date = datetime.now().strftime("%Y%m%d")
         listpdfs_filename = f"{current_date}_listpdfs.txt"
         listpdfs_path = os.path.join(LISTPDF_DIR, listpdfs_filename)
-
-        # 1. Ưu tiên đọc từ _listpdfs.txt hôm nay
-        if os.path.exists(listpdfs_path):
-            latest_stt, latest_filename, latest_service_id, latest_service_name = get_latest_ticket_from_list(listpdfs_path)
-            if latest_stt is not None:
-                return {
-                    "stt": latest_stt,
-                    "formattedStt": f"{latest_stt:04d}",
-                    "filename": latest_filename,
-                    "serviceId": latest_service_id,
-                    "serviceName": latest_service_name
-                }
-
-        # 2. Fallback: tìm file PDF mới nhất trong ngày
-        today_prefix = f"{current_date}_"
-        pdf_files = []
-        for f in os.listdir(PDF_DIR_ABS):
-            if f.endswith(".pdf") and f.startswith(today_prefix):
-                pdf_path = os.path.join(PDF_DIR_ABS, f)
-                pdf_files.append((os.path.getmtime(pdf_path), f))
-
-        if not pdf_files:
-            raise HTTPException(status_code=404, detail="Không có ticket hoặc PDF nào trong ngày hôm nay")
-
-        pdf_files.sort(key=lambda x: x[0], reverse=True)
-        newest_filename = pdf_files[0][1]
-
-        # Dò tìm thông tin của file PDF này trong tất cả _listpdfs.txt
-        stt, service_id, service_name = find_pdf_in_list_files(newest_filename)
-
+        if not os.path.exists(listpdfs_path):
+            raise HTTPException(status_code=404, detail="Không có ticket nào trong ngày hôm nay")
+        latest_stt, latest_filename, latest_service_id, latest_service_name = get_latest_ticket_from_list(listpdfs_path)
+        if latest_stt is None:
+            raise HTTPException(status_code=404, detail="Không tìm thấy ticket nào")
         return {
-            "stt": stt,
-            "formattedStt": f"{stt:04d}" if stt is not None else None,
-            "filename": newest_filename,
-            "serviceId": service_id,
-            "serviceName": service_name
+            "stt": latest_stt,
+            "formattedStt": f"{latest_stt:04d}",
+            "filename": latest_filename,
+            "serviceId": latest_service_id,
+            "serviceName": latest_service_name
         }
     except HTTPException:
         raise
@@ -644,7 +562,7 @@ async def print_ticket_endpoint(request: PrintTicketRequest):
         dt = None
         if request.filename:
             dt = parse_datetime_from_pdf_filename(request.filename)
-        run_print_ticket(request.stt, dt, request.serviceName or "HỘ TỊCH - CHỨNG THỰC")
+        run_print_ticket(request.stt, dt, request.serviceName or "TƯ PHÁP - HỘ TỊCH")
         return {
             "success": True,
             "message": f"Đã gửi lệnh in ticket #{request.stt:04d}"
@@ -687,19 +605,20 @@ async def kill_chrome():
 @app.post("/api/ticket")
 async def create_ticket(request: TicketRequest, background_tasks: BackgroundTasks):
     try:
-        # Ticket-only: không tạo file PDF, chỉ ghi STT + serviceId + serviceName
+        pdf_filename = generate_pdf_filename()
         current_date = datetime.now().strftime("%Y%m%d")
         listpdfs_filename = get_listpdfs_filename(current_date)
         listpdfs_path = os.path.join(LISTPDF_DIR, listpdfs_filename)
-        latest_stt = log_pdf_to_list(None, listpdfs_path, request.serviceId, request.serviceName)
+        latest_stt = log_pdf_to_list(pdf_filename, listpdfs_path, request.serviceId, request.serviceName)
         if latest_stt is None:
             raise HTTPException(status_code=500, detail="Không thể tạo số thứ tự")
 
-        success = send_ticket_to_api(latest_stt, serviceId=request.serviceId, pdf_filename="", ticket_only=True)
+        success = send_ticket_to_api(latest_stt, serviceId=request.serviceId, pdf_filename=pdf_filename, ticket_only=True)
         if not success:
             print(f"[WARNING] Failed to send ticket to QueueSystem")
 
-        run_print_ticket(latest_stt, None, request.serviceName or "HỘ TỊCH - CHỨNG THỰC")
+        dt = parse_datetime_from_pdf_filename(pdf_filename)
+        run_print_ticket(latest_stt, dt, request.serviceName or "TƯ PHÁP - HỘ TỊCH")
 
         formatted_stt = f"{latest_stt:04d}"
         return {

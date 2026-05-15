@@ -163,21 +163,22 @@ const FORM_FILLER = (function() {
    * Lấy dữ liệu từ API
    * @returns {Promise<Object|null>} Dữ liệu API
    */
-  async function fetchDataFromAPI() {
-    if (apiDataCache) return apiDataCache;
-    const API_URL = 'http://localhost:5431';
-    try {
-      const response = await fetch(API_URL, { method: 'GET', headers: { 'Accept': 'application/json' } });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      apiDataCache = data;
-      console.log('[FormFiller] API data fetched and cached');
-      return data;
-    } catch (error) {
-      console.log('[FormFiller] API fetch failed:', error.message);
-      return null;
-    }
-  }
+  // async function fetchDataFromAPI() {
+  //   if (apiDataCache) return apiDataCache;
+  //   // const API_URL = 'http://localhost:5431';
+  //   // const API_URL = 'http://localhost:3000';
+  //   try {
+  //     const response = await fetch(API_URL, { method: 'GET', headers: { 'Accept': 'application/json' } });
+  //     if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  //     const data = await response.json();
+  //     apiDataCache = data;
+  //     console.log('[FormFiller] API data fetched and cached');
+  //     return data;
+  //   } catch (error) {
+  //     console.log('[FormFiller] API fetch failed:', error.message);
+  //     return null;
+  //   }
+  // }
 
   /**
    * Điền form chính
@@ -254,7 +255,7 @@ const FORM_FILLER = (function() {
       // Wait a bit for the page to fully initialize, then try to fill "Dịch vụ công"
       setTimeout(() => {
         // Find the "Dịch vụ công" field
-        const dichVuCongElement = findFieldByLabelText('dịch vụ công');
+        const dichVuCongElement = findFieldByLabelText('Dịch vụ công');
         if (dichVuCongElement) {
           console.log('[FormFiller] Found "Dịch vụ công" field');
           
@@ -265,7 +266,7 @@ const FORM_FILLER = (function() {
             // 2.000884.000.00.00.H55 - Chứng thực chữ ký
             serviceValues = [
               'Chứng thực chữ ký',
-              'Chứng thực chữ ký trong các giấy tờ, văn bản',
+              'Thủ tục chứng thực chữ ký trong các giấy tờ, văn bản',
               '000884', // Service ID from code
               'H55', // Last part of code
               '2.000884.000.00.00.H55', // Full code
@@ -346,7 +347,7 @@ const FORM_FILLER = (function() {
     findFieldByLabelText,
     fillField,
     handleMatSelect,
-    fetchDataFromAPI,
+    // fetchDataFromAPI,
     fillForm,
     
     // Getters/Setters

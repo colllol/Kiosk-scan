@@ -168,8 +168,8 @@ async function processTicketForUrl(url, tabId) {
     
     const queuePayload = {
       ticketNumber: formattedStt,
-      serviceId: serviceId || 1,
-      counterId: 7,
+      serviceId: serviceId || 99,
+      counterId: 1,
       filePdf: filename || " "
     };
     console.log('[BG] Payload:', JSON.stringify(queuePayload));
@@ -178,10 +178,10 @@ async function processTicketForUrl(url, tabId) {
     let queueSuccess = false;
     let queueErrorText = '';
     try {
-      // Try with text/plain to avoid CORS preflight
+      // Try with application/json as required by QueueSystem API
       queueResponse = await fetch(QUEUESYSTEM_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(queuePayload)
       });
 
@@ -330,7 +330,16 @@ async function clearCookiesForDomain(domain) {
     
     // Clear browser cache and storage if possible
     console.log(`[BG] ✅ Cleared ${cleared} cookies total`);
-    
+
+    // Step 5: Gửi lệnh kill Chrome để reset về trạng thái ban đầu
+    console.log('[BG] Step 5: Sending kill-chrome command...');
+    try {
+      await fetch(`${BACKEND_API}/api/kill-chrome`, { method: 'POST' });
+      console.log('[BG] ✅ Kill-chrome command sent successfully');
+    } catch (err) {
+      console.error('[BG] ❌ Failed to send kill-chrome command:', err);
+    }
+
     return cleared;
   } catch (error) {
     console.error('[BG] ❌ Error clearing cookies:', error);

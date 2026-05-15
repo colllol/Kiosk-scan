@@ -43,23 +43,118 @@ def _check_rembg():
     return _REMBG_AVAILABLE
 
 
-def _check_pytesseract():
-    global _PYTESSERACT_AVAILABLE
-    if _PYTESSERACT_AVAILABLE is None:
-        try:
-            import pytesseract  # noqa: F401
+# ================= TESSERACT OSD (COMMENTED - replaced by OpenCV custom) =================
+# def _check_pytesseract():
+#     global _PYTESSERACT_AVAILABLE
+#     if _PYTESSERACT_AVAILABLE is None:
+#         try:
+#             import pytesseract  # noqa: F401
+#
+#             tesseract_path = os.environ.get(
+#                 "TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+#             )
+#             if os.path.exists(tesseract_path):
+#                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
+#             _PYTESSERACT_AVAILABLE = True
+#             print("[TESSERACT] Pytesseract loaded.")
+#         except ImportError:
+#             _PYTESSERACT_AVAILABLE = False
+#             print("[TESSERACT] Pytesseract not installed. Orientation detection disabled.")
+#     return _PYTESSERACT_AVAILABLE
 
-            tesseract_path = os.environ.get(
-                "TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-            )
-            if os.path.exists(tesseract_path):
-                pytesseract.pytesseract.tesseract_cmd = tesseract_path
-            _PYTESSERACT_AVAILABLE = True
-            print("[TESSERACT] Pytesseract loaded.")
-        except ImportError:
-            _PYTESSERACT_AVAILABLE = False
-            print("[TESSERACT] Pytesseract not installed. Orientation detection disabled.")
-    return _PYTESSERACT_AVAILABLE
+
+# ================= OpenCV custom rotation (thay thế Tesseract OSD) =================
+def _detect_text_orientation_opencv(cv_image):
+    """
+    Phát hiện hướng xoay của văn bản bằng OpenCV (không dùng Tesseract).
+    - Resize ảnh xuống nhỏ (max 300px) để tăng tốc
+    - So sánh bounding box của text contours để xác định hướng
+
+    Returns: góc cần xoay (0, 90, 180, 270)
+    """
+    gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+
+    if h < 50 or w < 50:
+        return 0
+
+    # Resize ảnh xuống max 1200px để giữ text rõ trong khi vẫn tăng tốc
+    scale = min(1200.0 / h, 1200.0 / w, 1.0)
+    if scale < 1.0:
+        small = cv2.resize(gray, (int(w * scale), int(h * scale)),
+                           interpolation=cv2.INTER_AREA)
+        sh, sw = small.shape
+    else:
+        small = gray
+        sh, sw = h, w
+
+    # Nếu ảnh gần như đồng màu (std quá thấp) → không có text, bỏ qua
+    if np.std(small) < 10:
+        return 0
+
+    # OTSU threshold
+    _, binary = cv2.threshold(small, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Xoá nhiễu nhỏ
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
+
+    # Tìm contours
+    contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return 0
+
+    # Lọc contour quá nhỏ (nhiễu) - giữ ngưỡng thấp để không mất text
+    min_area = max(3, (sh * sw) * 0.0001)
+    valid = [c for c in contours if cv2.contourArea(c) > min_area]
+    if not valid:
+        return 0
+
+    # Gộp tất cả contour để lấy bounding box bao trùm toàn bộ text
+    all_pts = np.vstack([c.reshape(-1, 2) for c in valid])
+    x, y, bw, bh = cv2.boundingRect(all_pts)
+
+    if bw == 0 or bh == 0:
+        return 0
+
+    # So sánh chiều rộng vs chiều cao của vùng text
+    # Text nằm ngang → bbox rộng hơn cao → 0° hoặc 180°
+    # Text nằm dọc → bbox cao hơn rộng → 90° hoặc 270°
+    if bw >= bh:
+        # Text ngang: kiểm tra 180° bằng mật độ text 1/4 trên vs 1/4 dưới
+        q1 = cleaned[:sh//4, :]
+        q4 = cleaned[3*sh//4:, :]
+        d1 = np.sum(q1) / 255.0
+        d4 = np.sum(q4) / 255.0
+        if d4 > d1 * 1.5 and d4 > 10:
+            return 180
+        return 0
+    else:
+        # Text dọc: kiểm tra 90° vs 270° bằng mật độ text 1/4 trái vs 1/4 phải
+        q1 = cleaned[:, :sw//4]
+        q4 = cleaned[:, 3*sw//4:]
+        d1 = np.sum(q1) / 255.0
+        d4 = np.sum(q4) / 255.0
+        if d4 > d1 * 1.5 and d4 > 10:
+            return 270
+        return 90
+
+
+def rotate_image_opencv(cv_image):
+    """
+    Xoay ảnh về đúng hướng văn bản bằng OpenCV (thay thế Tesseract OSD).
+    Nhanh hơn vì không cần load Tesseract engine.
+    """
+    angle = _detect_text_orientation_opencv(cv_image)
+    if angle == 0:
+        return cv_image
+    if angle == 90:
+        return cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
+    if angle == 180:
+        return cv2.rotate(cv_image, cv2.ROTATE_180)
+    if angle == 270:
+        return cv2.rotate(cv_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return cv_image
 
 
 def _check_ppocr_lite():
@@ -499,27 +594,28 @@ def detect_document_ppocr_lite(cv_image):
 
 # ================= Rotation & Background Removal =================
 
-def rotate_image_with_osd(cv_image):
-    """Xoay ảnh về đúng hướng văn bản bằng Tesseract OSD."""
-    if not _check_pytesseract():
-        return cv_image
-    try:
-        import pytesseract
-        from pytesseract import Output
-
-        rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-        osd = pytesseract.image_to_osd(rgb, output_type=Output.DICT)
-        angle = osd['rotate']
-        if angle == 90:
-            return cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
-        if angle == 180:
-            return cv2.rotate(cv_image, cv2.ROTATE_180)
-        if angle == 270:
-            return cv2.rotate(cv_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        return cv_image
-    except Exception as e:
-        print(f"[TESSERACT] OSD failed: {e}")
-        return cv_image
+# ================= TESSERACT OSD (COMMENTED - replaced by OpenCV custom) =================
+# def rotate_image_with_osd(cv_image):
+#     """Xoay ảnh về đúng hướng văn bản bằng Tesseract OSD."""
+#     if not _check_pytesseract():
+#         return cv_image
+#     try:
+#         import pytesseract
+#         from pytesseract import Output
+#
+#         rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+#         osd = pytesseract.image_to_osd(rgb, output_type=Output.DICT)
+#         angle = osd['rotate']
+#         if angle == 90:
+#             return cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
+#         if angle == 180:
+#             return cv2.rotate(cv_image, cv2.ROTATE_180)
+#         if angle == 270:
+#             return cv2.rotate(cv_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+#         return cv_image
+#     except Exception as e:
+#         print(f"[TESSERACT] OSD failed: {e}")
+#         return cv_image
 
 
 def remove_background(cv_image):
@@ -692,9 +788,9 @@ def process_single_image(
             else:
                 warped = adjust_brightness_contrast(detect_img, brightness=10, contrast=10)
 
-        # --- Bước 4: Xoay ---
+        # --- Bước 4: Xoay (dùng OpenCV custom thay vì Tesseract OSD) ---
         if enable_rotation:
-            warped = rotate_image_with_osd(warped)
+            warped = rotate_image_opencv(warped)
 
         # --- Bước 5: Scan effect ---
         result = apply_scan_effect(

@@ -95,7 +95,7 @@ def _render_ticket_image(number: int, now: datetime, service_name: str = "HỘ T
 
     f_header1 = _load_font(26)
     f_header2 = _load_font(22)
-    f_title = _load_font(34)
+    f_title = _load_font(22)
     f_number = _load_font(160)
     f_note = _load_font(22)
     f_footer = _load_font(20)

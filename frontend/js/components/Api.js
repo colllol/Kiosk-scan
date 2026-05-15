@@ -286,81 +286,54 @@ class Api {
         // Add modal to body
         document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-        // Setup event listeners
-        const modal = document.getElementById('pdf-modal');
-        const closeBtn = document.getElementById('pdf-modal-close');
-        const closeBtn2 = document.getElementById('pdf-modal-close-btn');
-        const certifyDocBtn = document.getElementById('pdf-modal-certify-doc');
-        const certifySignBtn = document.getElementById('pdf-modal-certify-sign');
+        // Dùng event delegation thay vì getElementById + addEventListener
+        // để tránh lỗi trong QWebEngineView (elements chưa sẵn sàng)
+        document.body.addEventListener('click', function modalClickHandler(e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const id = btn.id;
+            if (!id || !id.startsWith('pdf-modal-')) return;
 
-        console.log('[Api] Modal element:', modal);
+            e.preventDefault();
+            e.stopPropagation();
 
-        const closeModal = () => {
-            console.log('[Api] Closing PDF modal');
-            modal.remove();
-            // Clean up blob URL
-            URL.revokeObjectURL(pdfUrl);
-        };
-
-        closeBtn.addEventListener('click', closeModal);
-        closeBtn2.addEventListener('click', closeModal);
-
-        certifyDocBtn.addEventListener('click', () => {
-            console.log('[Api] Opening document certification URL');
-            const newWindow = window.open('https://dichvucong.thainguyen.gov.vn/nop-ho-so?MaTTHCDP=2.000815.000.00.00.H55&MaCoQuanThucHien=H55.242&vnconnect=1&MaDVC=2.000815.000.00.00.H55.02&MDT=MzQ1ZTQwMDctY2ZlMS00YmQ4LTgxNjctN2MxZTYzYjUzNjU3', '_blank');
-            
-            // Kiểm tra nếu window.open bị chặn
-            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-                console.warn('[Api] window.open() was blocked, trying alternative method');
-                // Thử phương pháp thay thế: tạo link và click
-                const link = document.createElement('a');
-                link.href = 'https://dichvucong.thainguyen.gov.vn/nop-ho-so?MaTTHCDP=2.000815.000.00.00.H55&MaCoQuanThucHien=H55.242&vnconnect=1&MaDVC=2.000815.000.00.00.H55.02&MDT=MzQ1ZTQwMDctY2ZlMS00YmQ4LTgxNjctN2MxZTYzYjUzNjU3';
-                link.target = '_blank';
-                link.style.display = 'none';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            if (id === 'pdf-modal-close' || id === 'pdf-modal-close-btn') {
+                console.log('[Api] Closing PDF modal');
+                const m = document.getElementById('pdf-modal');
+                if (m) m.remove();
+                URL.revokeObjectURL(pdfUrl);
+                return;
             }
-            
-            // Đợi một chút trước khi đóng modal và chuyển hướng
-            setTimeout(() => {
-                closeModal();
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 100);
-            }, 500);
-        });
 
-        certifySignBtn.addEventListener('click', () => {
-            console.log('[Api] Opening signature certification URL');
-            const newWindow = window.open('https://dichvucong.thainguyen.gov.vn/nop-ho-so?MaTTHCDP=2.000884.000.00.00.H55&MaCoQuanThucHien=H55.242&vnconnect=1&MaDVC=2.000884.000.00.00.H55.01&MDT=MzQ1ZTQwMDctY2ZlMS00YmQ4LTgxNjctN2MxZTYzYjUzNjU3', '_blank');
-            
-            // Kiểm tra nếu window.open bị chặn
-            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-                console.warn('[Api] window.open() was blocked, trying alternative method');
-                // Thử phương pháp thay thế: tạo link và click
-                const link = document.createElement('a');
-                link.href = 'https://dichvucong.thainguyen.gov.vn/nop-ho-so?MaTTHCDP=2.000884.000.00.00.H55&MaCoQuanThucHien=H55.242&vnconnect=1&MaDVC=2.000884.000.00.00.H55.01&MDT=MzQ1ZTQwMDctY2ZlMS00YmQ4LTgxNjctN2MxZTYzYjUzNjU3';
-                link.target = '_blank';
-                link.style.display = 'none';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            if (id === 'pdf-modal-certify-doc') {
+                console.log('[Api] Certify document clicked');
+                const m = document.getElementById('pdf-modal');
+                if (m) m.remove();
+                URL.revokeObjectURL(pdfUrl);
+                // Điều hướng đến dichvucong trong cùng QWebEngineView
+                window.location.href = 'https://dichvucong.thainguyen.gov.vn/nop-ho-so?MaTTHCDP=2.000815.000.00.00.H55&MaCoQuanThucHien=H55.242&vnconnect=1&MaDVC=2.000815.000.00.00.H55.02&MDT=MzQ1ZTQwMDctY2ZlMS00YmQ4LTgxNjctN2MxZTYzYjUzNjU3';
+                return;
             }
-            
-            // Đợi một chút trước khi đóng modal và chuyển hướng
-            setTimeout(() => {
-                closeModal();
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 100);
-            }, 500);
-        });
+
+            if (id === 'pdf-modal-certify-sign') {
+                console.log('[Api] Certify sign clicked');
+                const m = document.getElementById('pdf-modal');
+                if (m) m.remove();
+                URL.revokeObjectURL(pdfUrl);
+                // Điều hướng đến dichvucong trong cùng QWebEngineView
+                window.location.href = 'https://dichvucong.thainguyen.gov.vn/nop-ho-so?MaTTHCDP=2.000884.000.00.00.H55&MaCoQuanThucHien=H55.242&vnconnect=1&MaDVC=2.000884.000.00.00.H55.01&MDT=MzQ1ZTQwMDctY2ZlMS00YmQ4LTgxNjctN2MxZTYzYjUzNjU3';
+                return;
+            }
+        }, { once: true });
 
         // Close on ESC
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && modal) {
-                closeModal();
+            if (e.key === 'Escape') {
+                const m = document.getElementById('pdf-modal');
+                if (m) {
+                    m.remove();
+                    URL.revokeObjectURL(pdfUrl);
+                }
             }
         });
     }
@@ -382,20 +355,20 @@ class Api {
 
         try {
             // Step 1: Fetch fullName từ localhost:5431
-            let serviceName = 'Chứng thực tài liệu';
-            try {
-                const response = await fetch('http://localhost:5431/');
-                if (response.ok) {
-                    const data = await response.json();
-                    // Cấu trúc: data.data.cardObj.fullName
-                    const fullName = data?.data?.cardObj?.fullName || null;
-                    if (fullName) {
-                        serviceName = fullName;
-                    }
-                }
-            } catch (err) {
-                console.warn('Could not fetch fullName from localhost:5431:', err.message);
-            }
+            let serviceName = 'Tư pháp - Hộ tịch'; // default fallback
+            // try {
+            //     const response = await fetch('http://localhost:5431/');
+            //     if (response.ok) {
+            //         const data = await response.json();
+            //         // Cấu trúc: data.data.cardObj.fullName
+            //         const fullName = data?.data?.cardObj?.fullName || null;
+            //         if (fullName) {
+            //             serviceName = fullName;
+            //         }
+            //     }
+            // } catch (err) {
+            //     console.warn('Could not fetch fullName from localhost:5431:', err.message);
+            // }
 
             // Step 2: Upload all images
             const ids = await this.uploadAllImages();

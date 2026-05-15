@@ -199,7 +199,8 @@
     // Fetch data from API and fill form
     if (btnFetch) {
       btnFetch.addEventListener('click', async () => {
-        const apiUrl = 'http://localhost:5431';
+        // const apiUrl = 'http://localhost:5431';
+        // const apiUrl = 'http://localhost:3000';
 
         btnFetch.disabled = true;
         btnFetch.textContent = '⏳ Đang lấy dữ liệu từ API...';

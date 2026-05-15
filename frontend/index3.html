@@ -3,304 +3,252 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Webcam Scan Tài liệu</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script async src="https://docs.opencv.org/4.5.5/opencv.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="referrer" content="no-referrer-when-downgrade">
+
+    <title>Kiosk lấy số thứ tự</title>
     <style>
-        /* === Layout: 80/20 top, 100 bottom === */
-        #app {
-            width: 100vw;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Features section */
+        .features-section {
+            width: 100%;
             height: 100vh;
+            height: 100dvh;
+            background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85));
+            padding: clamp(10px, 2vw, 24px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .section-title {
+            font-size: clamp(22px, 3vw, 36px);
+            font-weight: 600;
+            margin-bottom: clamp(10px, 2vh, 20px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #1a1a1a;
+            flex-shrink: 0;
+        }
+
+        .features-grid {
             display: grid;
-            grid-template-columns: 80% 20%;
-            grid-template-rows: 80% 20%;
-            overflow: hidden;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(180px, 24vw, 320px)), 1fr));
+            grid-auto-rows: minmax(0, 1fr);
+            gap: clamp(10px, 1.8vw, 20px);
+            flex: 1;
+            min-height: 0;
+            align-content: stretch;
         }
 
-        /* Card 1 – Camera (top-left) */
-        #camera-card {
-            grid-column: 1;
-            grid-row: 1;
-            background: #1f2937;
+        .feature-card {
+            background: white;
+            border: 2px solid #2196F3;
+            border-radius: 12px;
+            padding: clamp(12px, 2.4vw, 30px);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
             display: flex;
             flex-direction: column;
-            padding: 12px;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(8px, 1.8vh, 15px);
+            min-height: 0;
             overflow: hidden;
         }
 
-        /* Card 2 – Image list (top-right) */
-        #images-card {
-            grid-column: 2;
-            grid-row: 1;
-            background: #1f2937;
-            display: flex;
-            flex-direction: column;
-            padding: 12px;
-            overflow: hidden;
+        .feature-card:hover {
+            background: #2196F3;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
         }
 
-        /* Card 3 – Buttons (bottom, spans both columns) */
-        #controls-card {
-            grid-column: 1 / span 2;
-            grid-row: 2;
-            background: #111827;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            padding: 12px 20px;
-            flex-wrap: wrap;
+        .feature-card:hover .feature-icon {
+            background: white;
         }
 
-        /* Camera viewport area – 80% of camera card */
-        #camera-viewport {
-            flex: 1;
+        .feature-icon {
+            width: clamp(42px, 7vmin, 64px);
+            height: clamp(42px, 7vmin, 64px);
+            background: #2196F3;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            position: relative;
-            background: #000;
-            border-radius: 8px;
-            overflow: hidden;
+            font-size: clamp(22px, 4vmin, 32px);
+            transition: all 0.3s ease;
+            flex-shrink: 0;
         }
 
-        #camera-viewport video {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
+        .feature-card h1,
+        .feature-card h3 {
+            font-size: clamp(24px, 4vmin, 48px);
+            font-weight: 700;
+            line-height: 1.2;
+            overflow-wrap: anywhere;
         }
 
-        /* Resize handle */
-        #resize-handle {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 24px;
-            height: 24px;
-            cursor: nwse-resize;
-            z-index: 20;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 14px;
-            pointer-events: auto;
+        .feature-card p {
+            color: #666;
+            font-size: clamp(12px, 1.5vw, 14px);
         }
 
-        /* Image list scroll area */
-        #images-scroll {
-            flex: 1;
-            overflow-y: auto;
-            margin-top: 8px;
+        .feature-card:hover p {
+            color: #e0e0e0;
         }
 
-        /* Scrollbar */
-        #images-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-        #images-scroll::-webkit-scrollbar-track {
-            background: #374151;
-            border-radius: 3px;
-        }
-        #images-scroll::-webkit-scrollbar-thumb {
-            background: #6b7280;
-            border-radius: 3px;
+        .external-link::after {
+            content: ' ↗';
+            font-size: 12px;
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
-            #app {
-                grid-template-columns: 100%;
-                grid-template-rows: 50% 30% 20%;
+            .features-section {
+                padding: 12px;
             }
-            #camera-card {
-                grid-column: 1;
-                grid-row: 1;
+            .features-grid {
+                grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
             }
-            #images-card {
-                grid-column: 1;
-                grid-row: 2;
+            .feature-card {
+                padding: 14px;
             }
-            #controls-card {
-                grid-column: 1;
-                grid-row: 3;
+        }
+
+        @media (max-height: 650px) {
+            .features-section {
+                padding: 10px;
+            }
+            .section-title {
+                margin-bottom: 8px;
+            }
+            .features-grid {
+                gap: 10px;
+            }
+            .feature-card {
+                gap: 6px;
+                padding: 10px;
+            }
+            .feature-icon {
+                width: 38px;
+                height: 38px;
+                font-size: 20px;
+            }
+            .feature-card h1,
+            .feature-card h3 {
+                font-size: clamp(18px, 3vmin, 32px);
+            }
+        }
+
+        @media (max-height: 420px) and (min-width: 900px) {
+            .features-grid {
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+            }
+            .feature-icon {
+                width: 34px;
+                height: 34px;
+                font-size: 18px;
+            }
+            .feature-card h1,
+            .feature-card h3 {
+                font-size: clamp(18px, 2.4vmin, 24px);
             }
         }
     </style>
 </head>
 
-<body class="bg-gray-900 min-h-screen overflow-hidden">
-    <div id="app">
-
-        <!-- ====== Card 1: Camera (80% × 80%) ====== -->
-        <div id="camera-card">
-            <div class="flex items-center justify-between mb-2">
-                <h2 class="text-base font-semibold text-white">
-                    <i class="fas fa-video mr-2"></i>Camera
-                </h2>
+<body>
+        <!-- Features Section -->
+        <div class="features-section">
+            <div class="section-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                Chức năng
             </div>
 
-            <div id="camera-viewport">
-                <video id="video" autoplay playsinline></video>
-
-                <!-- Flash overlay -->
-                <div id="flash" class="absolute inset-0 bg-white opacity-0 pointer-events-none"></div>
-
-                <!-- Camera error message -->
-                <div id="camera-error" class="hidden absolute inset-0 flex items-center justify-center bg-gray-900">
-                    <div class="text-center text-gray-400 p-4">
-                        <i class="fas fa-video-slash text-5xl mb-4"></i>
-                        <p class="text-lg">Không tìm thấy camera</p>
-                        <p class="text-sm mt-2">Vui lòng cấp quyền truy cập camera</p>
-                    </div>
+               <div class="features-grid">
+                <div class="feature-card" data-service-id="99" data-service-name="Tư pháp - Hộ tịch">
+                    <div class="feature-icon">⚖️</div>
+                    <h1>Tư pháp - Hộ tịch </br> ( Cường) </h1>
+                    <h1>QUẦY SỐ 1</h1>
                 </div>
 
-                <!-- Resize handle indicator (hidden) -->
-                <div id="resize-handle" class="hidden" title="Kéo để chỉnh kích thước">
-                    <i class="fas fa-arrows-alt"></i>
+                <div class="feature-card" data-service-id="2" data-service-name="Tư pháp - Hộ tịch">
+                    <div class="feature-icon">⚖️</div>
+                    <h1>Tư pháp - Hộ tịch </br>( Nga) </h1>
+                    <h1>QUẦY SỐ 2</h1>
                 </div>
+
+                <div class="feature-card" data-service-id="3" data-service-name="Địa chính - Xây dựng">
+                    <div class="feature-icon">🏗️</div>
+                    <h1>Tài nguyên - Đất đai - Môi trường </br>( Bạch Trang) </h1>
+                    <h1>QUẦY SỐ 3</h1>
+                </div>
+
+                    <div class="feature-card" data-service-id="4" data-service-name="Kinh tế - Xã hội">
+                    <div class="feature-icon">📊</div>
+                    <h1>Kinh tế - Kinh doanh </br>( Phương) </h1>
+                    <h1>QUẦY SỐ 4</h1>
+                </div>
+
+                <div class="feature-card" data-service-id="5" data-service-name="Văn hóa - Thông tin">
+                    <div class="feature-icon">🎭</div>
+                    <h1>Văn hóa - Xã hội - Chính sách </br>( Huyền Trang)</h1>
+                    <h1>QUẦY SỐ 5</h1>
+                </div>
+
             </div>
         </div>
 
-        <!-- ====== Card 2: Image List (20% × 80%) ====== -->
-        <div id="images-card">
-            <h2 class="text-base font-semibold text-white">
-                <i class="fas fa-images mr-2"></i>Ảnh đã chụp
-                <span id="image-count" class="text-sm text-gray-400 ml-2">(0)</span>
-            </h2>
-            <div id="images-scroll">
-                <div id="empty-message" class="text-center py-8 text-gray-500">
-                    <i class="fas fa-camera-retro text-3xl mb-3 opacity-50"></i>
-                    <p class="text-sm">Chưa có ảnh nào</p>
-                </div>
-                <div id="image-list" class="space-y-2"></div>
-            </div>
-        </div>
-
-        <!-- ====== Card 3: Controls (100% × 20%) ====== -->
-        <div id="controls-card">
-            <button id="capture-btn"
-                class="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2">
-                <i class="fas fa-camera"></i>
-                <span>Chụp ảnh</span>
-            </button>
-
-            <button id="reset-btn"
-                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg transition-colors flex items-center gap-2">
-                <i class="fas fa-trash-alt"></i>
-                <span>Xóa tất cả</span>
-            </button>
-
-            <button id="pdf-btn"
-                class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                style="display: none;">
-                <i class="fas fa-file-pdf"></i>
-                <span>Lấy số thứ tự</span>
-            </button>
-
-            <select title="serviceID" style="display: none;" id="service-select"
-                class="bg-gray-700 text-white px-3 py-3 rounded-lg border border-gray-600">
-                <option value="#">Chọn dịch vụ</option>
-                <option value="1">Kinh tế - Xã hội</option>
-                <option value="2">Tư pháp - Hộ tịch</option>
-                <option value="3">Địa chính - Xây dựng</option>
-                <option value="4">Văn hóa - Thông tin</option>
-                <option value="5">Kế toán - Tài chính</option>
-                <option value="6">Giáo dục - Y tế</option>
-            </select>
-
-            <button id="certify-btn"
-                class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2">
-                <i class="fas fa-certificate"></i>
-                <span>Chứng thực tài liệu</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Loading Overlay -->
-    <div id="loading-overlay"
-        class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center">
-        <div class="bg-gray-800 rounded-2xl p-8 text-center shadow-2xl">
-            <div class="relative w-20 h-20 mx-auto mb-4">
-                <div class="absolute inset-0 border-4 border-blue-500/30 rounded-full"></div>
-                <div class="absolute inset-0 border-4 border-blue-500 border-t-transparent rounded-full animate-spin">
-                </div>
-            </div>
-            <p class="text-white text-lg font-medium">Đang tạo PDF...</p>
-            <p class="text-gray-400 text-sm mt-2">Vui lòng chờ trong giây lát</p>
-        </div>
-    </div>
-
-    <!-- Lightbox Modal -->
-    <div id="lightbox" class="fixed inset-0 bg-black/95 z-50 hidden">
-        <button id="lightbox-close"
-            class="absolute top-4 right-4 z-10 w-12 h-12 bg-gray-800/50 hover:bg-gray-700 rounded-full flex items-center justify-center text-white text-xl transition-colors">
-            <i class="fas fa-times"></i>
-        </button>
-        <button id="lightbox-prev"
-            class="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-gray-800/50 hover:bg-gray-700 rounded-full flex items-center justify-center text-white text-xl transition-colors hidden">
-            <i class="fas fa-chevron-left"></i>
-        </button>
-        <button id="lightbox-next"
-            class="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 bg-gray-800/50 hover:bg-gray-700 rounded-full flex items-center justify-center text-white text-xl transition-colors hidden">
-            <i class="fas fa-chevron-right"></i>
-        </button>
-        <div id="lightbox-content" class="w-full h-full flex items-center justify-center p-4">
-            <img id="lightbox-image" src="" alt="Xem ảnh" class="max-w-full max-h-full object-contain select-none">
-        </div>
-        <div id="lightbox-info"
-            class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-900/80 px-4 py-2 rounded-full text-white text-sm">
-            <span id="lightbox-counter">1 / 1</span>
-        </div>
-    </div>
-
-    <!-- Toast Container -->
-    <div id="toast-container" class="fixed top-4 right-4 z-[60] space-y-2"></div>
-
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-    <script type="module">
-        import { CONFIG, state } from './js/config.js';
-        import { Capture } from './js/components/Capture.js';
-        import { ImageModel, ImageStore } from './js/models/ImageModel.js';
-        import { Camera } from './js/components/Camera.js';
-        import { ImageList } from './js/components/ImageList.js';
-        import { Lightbox } from './js/components/Lightbox.js';
-        import { Toast } from './js/components/Toast.js';
-        import { Api } from './js/components/Api.js';
-        import { App } from './js/app.js';
-
-        window.CONFIG = CONFIG;
-        window.state = state;
-        window.Capture = Capture;
-        window.ImageModel = ImageModel;
-        window.ImageStore = ImageStore;
-        window.Camera = Camera;
-        window.ImageList = ImageList;
-        window.Lightbox = Lightbox;
-        window.Toast = Toast;
-        window.Api = Api;
-        window.App = App;
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const app = new App();
-            window.App = app;
-            app.init();
-        });
-    </script>
-
-    <!-- Video resize logic -->
-    <script>
-        (function () {
-            const video = document.getElementById('video');
-            if (video) {
-                video.style.transform = 'rotate(-90deg) scale(0.25)';
-            }
-        })();
-    </script>
+        <script>
+            document.querySelectorAll('.feature-card[data-service-id]').forEach(card => {
+                card.addEventListener('click', async function () {
+                    const serviceId = this.dataset.serviceId;
+                    const serviceName = this.dataset.serviceName;
+                    const TICKET_API = 'http://localhost:5000/api/ticket';
+                    try {
+                        const response = await fetch(TICKET_API, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ serviceId: parseInt(serviceId), serviceName })
+                        });
+                        // if (response.ok) {
+                        //     const data = await response.json();
+                        //     alert(`Số thứ tự: ${data.ticketNumber}\nDịch vụ: ${serviceName}\n\nĐã gửi lệnh in!`);
+                        // } else {
+                        //     const error = await response.json();
+                        //     alert(`Lỗi: ${error.message || 'Không thể lấy số thứ tự'}`);
+                        // }
+                    } catch (error) {
+                        alert(`Lỗi kết nối: ${error.message}`);
+                    }
+                });
+            });
+        </script>
 </body>
-
 </html>

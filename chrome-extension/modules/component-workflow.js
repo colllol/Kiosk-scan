@@ -104,43 +104,43 @@ const COMPONENT_WORKFLOW = (function() {
       FORM_FILLER.fillField(targetInput, componentContent.firstComponent, 'text');
 
       // Step 3: Nếu là chứng thực chữ ký, thêm thành phần thứ 2
-      if (componentContent.isSignatureCertification && componentContent.secondComponent) {
-        console.log('[ComponentWorkflow] Signature certification detected, adding second component...');
+      // if (componentContent.isSignatureCertification && componentContent.secondComponent) {
+      //   console.log('[ComponentWorkflow] Signature certification detected, adding second component...');
         
-        // Chờ 1 giây rồi thêm thành phần thứ 2
-        await sleep(1000);
+      //   // Chờ 1 giây rồi thêm thành phần thứ 2
+      //   await sleep(1000);
         
-        // Click thêm thành phần lần nữa
-        addButton.click();
-        await sleep(1500);
+      //   // Click thêm thành phần lần nữa
+      //   addButton.click();
+      //   await sleep(1500);
         
-        // Tìm row mới nhất
-        lastRow = document.querySelector('table tbody tr:last-child') ||
-                  document.querySelector('mat-table tr:last-child') ||
-                  document.querySelector('.mat-mdc-table tbody tr:last-child') ||
-                  document.querySelector('.mat-table tbody tr:last-child');
+      //   // Tìm row mới nhất
+      //   lastRow = document.querySelector('table tbody tr:last-child') ||
+      //             document.querySelector('mat-table tr:last-child') ||
+      //             document.querySelector('.mat-mdc-table tbody tr:last-child') ||
+      //             document.querySelector('.mat-table tbody tr:last-child');
         
-        if (lastRow) {
-          // Tìm input trong row mới
-          let secondInput = lastRow.querySelector('td:nth-child(2) input.mat-mdc-input-element, td:nth-child(2) input.mat-input-element, td:nth-child(2) input');
+      //   if (lastRow) {
+      //     // Tìm input trong row mới
+      //     let secondInput = lastRow.querySelector('td:nth-child(2) input.mat-mdc-input-element, td:nth-child(2) input.mat-input-element, td:nth-child(2) input');
           
-          if (!secondInput) {
-            const formFields = lastRow.querySelectorAll('mat-form-field, .mat-mdc-form-field');
-            for (const field of formFields) {
-              const input = field.querySelector('input');
-              if (input && input.type !== 'hidden') {
-                secondInput = input;
-                break;
-              }
-            }
-          }
+      //     if (!secondInput) {
+      //       const formFields = lastRow.querySelectorAll('mat-form-field, .mat-mdc-form-field');
+      //       for (const field of formFields) {
+      //         const input = field.querySelector('input');
+      //         if (input && input.type !== 'hidden') {
+      //           secondInput = input;
+      //           break;
+      //         }
+      //       }
+      //     }
           
-          if (secondInput) {
-            console.log('[ComponentWorkflow] ✅ Found second target input:', secondInput);
-            FORM_FILLER.fillField(secondInput, componentContent.secondComponent, 'text');
-          }
-        }
-      }
+      //     if (secondInput) {
+      //       console.log('[ComponentWorkflow] ✅ Found second target input:', secondInput);
+      //       FORM_FILLER.fillField(secondInput, componentContent.secondComponent, 'text');
+      //     }
+      //   }
+      // }
 
       // Step 4: Chờ 1.5s rồi hiển thị overlay upload
       console.log('[ComponentWorkflow] Step 4: Waiting 1.5s before showing upload overlay...');
