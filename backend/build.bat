@@ -18,11 +18,11 @@ if exist "..\config.json" (
     echo { > config.json
     echo   "apiEndpoints": { >> config.json
     echo     "backend": "http://localhost:5000", >> config.json
-    echo     "queueSystem": "http://27.71.20.120:2020/api/ticket/create" >> config.json
+    echo     "queueSystem": "http://192.168.100.134:2020/api/ticket/create" >> config.json
     echo   }, >> config.json
     echo   "targetUrl": "https://dichvucong.thainguyen.gov.vn/thong-tin-cong-dan", >> config.json
     echo   "backendSettings": { >> config.json
-    echo     "host": "0.0.0.0", >> config.json
+    echo     "host": "localhost", >> config.json
     echo     "port": 5000, >> config.json
     echo     "uploadDir": "uploads", >> config.json
     echo     "pdfDir": "pdfs" >> config.json

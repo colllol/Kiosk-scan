@@ -108,9 +108,11 @@ importScripts('config.js');
 const TARGET_URL = CONFIG.targetUrl;
 const BACKEND_API = CONFIG.apiEndpoints.backend;
 const QUEUESYSTEM_API = CONFIG.apiEndpoints.queueSystem;
+const DVC_HOME_URL = 'https://dichvucong.gov.vn/p/home/dvc-trang-chu.html';
 
 // Track processed URLs to avoid duplicate requests
 const processedUrls = new Set();
+let closeChromeWhenHomeDetected = false;
 
 // Monitor URL changes
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -128,6 +130,13 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 
 function checkAndTriggerTicket(url, tabId) {
   if (!url) return;
+
+  if (closeChromeWhenHomeDetected && isDvcHomeUrl(url)) {
+    console.log('[BG] DVC home detected after ticket processing, closing Chrome loop window:', url);
+    closeChromeWhenHomeDetected = false;
+    closeCurrentChromeWindow(tabId);
+    return;
+  }
 
   // Check if URL matches target
   if (url.includes('/thong-tin-cong-dan')) {
@@ -255,6 +264,8 @@ async function processTicketForUrl(url, tabId) {
     // Step 4: Clear cookies for dichvucong.thainguyen.gov.vn
     console.log('[BG] Step 4: Clearing cookies for dichvucong.thainguyen.gov.vn...');
     await clearCookiesForDomain('dichvucong.thainguyen.gov.vn');
+    closeChromeWhenHomeDetected = true;
+    console.log('[BG] Ticket flow complete. Waiting for DVC home page before closing Chrome.');
 
   } catch (error) {
     console.error('[BG] ❌ Failed to process ticket:', error);
@@ -267,6 +278,32 @@ async function processTicketForUrl(url, tabId) {
       message: `${error.message}`,
       priority: 2
     });
+  }
+}
+
+function isDvcHomeUrl(url) {
+  return url && (
+    url.startsWith(DVC_HOME_URL) ||
+    url.includes('dichvucong.gov.vn/p/home/dvc-trang-chu.html')
+  );
+}
+
+async function closeCurrentChromeWindow(tabId) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab && tab.windowId !== undefined) {
+      await chrome.windows.remove(tab.windowId);
+      return;
+    }
+  } catch (err) {
+    console.warn('[BG] Could not close Chrome window directly:', err?.message || err);
+  }
+
+  try {
+    await fetch(`${BACKEND_API}/api/kill-chrome`, { method: 'POST' });
+    console.log('[BG] Fallback kill-chrome command sent');
+  } catch (err) {
+    console.error('[BG] Fallback kill-chrome failed:', err);
   }
 }
 
@@ -330,15 +367,6 @@ async function clearCookiesForDomain(domain) {
     
     // Clear browser cache and storage if possible
     console.log(`[BG] ✅ Cleared ${cleared} cookies total`);
-
-    // Step 5: Gửi lệnh kill Chrome để reset về trạng thái ban đầu
-    console.log('[BG] Step 5: Sending kill-chrome command...');
-    try {
-      await fetch(`${BACKEND_API}/api/kill-chrome`, { method: 'POST' });
-      console.log('[BG] ✅ Kill-chrome command sent successfully');
-    } catch (err) {
-      console.error('[BG] ❌ Failed to send kill-chrome command:', err);
-    }
 
     return cleared;
   } catch (error) {

@@ -26,7 +26,7 @@ if errorlevel 1 (
 echo [FRONTEND] Starting HTTP server on port 3000...
 
 REM Start Python HTTP server hidden (no console window)
-start "" /B pythonw.exe -m http.server 3000 > nul 2>&1
+start "" /B pythonw.exe -m http.server 3000 --bind localhost > nul 2>&1
 
 timeout /t 2 /nobreak > nul
 echo [FRONTEND] Server started at http://localhost:3000

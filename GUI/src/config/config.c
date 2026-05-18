@@ -269,6 +269,12 @@ gf_config_load(const char *path, gf_config_t **out_cfg)
     cfg->auto_launch_tasks = gf_json_get_bool(content, "auto_launch_tasks", false);
     cfg->workspace_count = (uint32_t)gf_json_get_int(content, "workspace_count", 3);
     gf_json_get_string_array(content, "startup_tasks", cfg->startup_tasks, GF_MAX_GRID_CELLS);
+    if (strcmp(cfg->startup_tasks[0], "http://127.0.0.1:3000/index3.html") == 0)
+        strncpy(cfg->startup_tasks[0], "http://localhost:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
+    if (strcmp(cfg->startup_tasks[0], "http://127.0.0.1:3000/index4.html") == 0)
+        strncpy(cfg->startup_tasks[0], "http://localhost:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
+    if (strcmp(cfg->startup_tasks[1], "http://127.0.0.1:3000/index2.html") == 0)
+        strncpy(cfg->startup_tasks[1], "http://localhost:3000/index2.html", GF_MAX_TASK_COMMAND - 1);
     gf_json_get_bool_array(content, "startup_task_f11", cfg->startup_task_f11, GF_MAX_GRID_CELLS, false);
 
     const char *ws_arr_end;
@@ -500,8 +506,8 @@ gf_config_default(gf_config_t **out_cfg)
 
     for (uint32_t i = 0; i < GF_MAX_GRID_CELLS; i++)
         cfg->startup_task_f11[i] = false;
-    strncpy(cfg->startup_tasks[0], "http://127.0.0.1:3000/index3.html", GF_MAX_TASK_COMMAND - 1);
-    strncpy(cfg->startup_tasks[1], "http://127.0.0.1:3000/index2.html", GF_MAX_TASK_COMMAND - 1);
+    strncpy(cfg->startup_tasks[0], "http://localhost:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
+    strncpy(cfg->startup_tasks[1], "http://localhost:3000/index2.html", GF_MAX_TASK_COMMAND - 1);
     cfg->startup_task_f11[0] = true;
     cfg->startup_task_f11[1] = true;
 

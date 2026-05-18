@@ -21,7 +21,7 @@
     "http://localhost:3000/*",
     "http://127.0.0.1/*",
     "http://192.168.100.238/*",
-    "http://27.71.20.120/*"
+    "http://192.168.100.134/*"
   ],
   "action": {
     "default_popup": "popup.html",

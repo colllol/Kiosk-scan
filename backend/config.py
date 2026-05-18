@@ -12,10 +12,10 @@ import sys
 # Default configuration
 DEFAULT_CONFIG = {
     "api_endpoints": {
-        "queue_system": "http://27.71.20.120:2020/api/ticket/create"
+        "queue_system": "http://192.168.100.134:2020/api/ticket/create"
     },
     "server": {
-        "host": "0.0.0.0",
+        "host": "localhost",
         "port": 5000
     },
     "directories": {

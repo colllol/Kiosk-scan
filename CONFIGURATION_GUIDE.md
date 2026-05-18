@@ -25,7 +25,7 @@ Kiosk-scan/
 {
   "apiEndpoints": {
     "backend": "http://localhost:5000",
-    "queueSystem": "http://27.71.20.120:2020/api/ticket/create"
+    "queueSystem": "http://192.168.100.134:2020/api/ticket/create"
   },
   "targetUrl": "https://dichvucong.thainguyen.gov.vn/thong-tin-cong-dan",
   "backendSettings": {
@@ -93,7 +93,7 @@ Nếu không muốn dùng script, có thể sửa trực tiếp:
 
 ## Ví dụ thay đổi API endpoint
 
-Giả sử cần thay đổi Queue System API từ `27.71.20.120:2020` sang `192.168.1.100:8080`:
+Giả sử cần thay đổi Queue System API từ `192.168.100.134:2020` sang `192.168.1.100:8080`:
 
 1. Sửa `config.json`:
 ```json

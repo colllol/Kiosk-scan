@@ -84,7 +84,7 @@ C:\Deploy\KioskScan\
 {
   "apiEndpoints": {
     "backend": "http://localhost:5000",
-    "queueSystem": "http://27.71.20.120:2020/api/ticket/create"
+    "queueSystem": "http://192.168.100.134:2020/api/ticket/create"
   },
   "targetUrl": "https://dichvucong.thainguyen.gov.vn/thong-tin-cong-dan",
   "backendSettings": {

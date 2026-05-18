@@ -46,6 +46,8 @@ typedef struct gf_manager_t {
     HWND task_labels[GF_MANAGER_MAX_TASK_CONTROLS];
     HWND task_edits[GF_MANAGER_MAX_TASK_CONTROLS];
     HWND task_f11[GF_MANAGER_MAX_TASK_CONTROLS];
+    HWND managed_task_windows[GF_MANAGER_MAX_TASK_CONTROLS];
+    bool managed_task_f11[GF_MANAGER_MAX_TASK_CONTROLS];
     HWND lock_grids;
     HWND borders;
     HWND auto_tile;
@@ -591,6 +593,81 @@ static void manager_send_f11(HWND hwnd)
     Sleep(300);
 }
 
+static HWND manager_launch_configured_task(gf_wm_t *wm, uint32_t index, bool *send_f11)
+{
+    char exe[MAX_PATH] = {0};
+    char launch_exe[MAX_PATH] = {0};
+    char args[2048] = {0};
+    char launch_args[2048] = {0};
+    const char *cmd;
+
+    if (send_f11)
+        *send_f11 = false;
+    if (!wm || !wm->config || index >= GF_MANAGER_MAX_TASK_CONTROLS)
+        return NULL;
+
+    cmd = wm->config->startup_tasks[index];
+    while (*cmd == ' ' || *cmd == '\t')
+        cmd++;
+    if (!*cmd)
+        return NULL;
+
+    manager_split_command(cmd, exe, sizeof(exe), args, sizeof(args));
+    if (!exe[0])
+        return NULL;
+
+    if (!args[0] && manager_looks_like_url(exe))
+    {
+        char url[GF_MAX_TASK_COMMAND] = {0};
+        manager_normalize_url(exe, url, sizeof(url));
+        strncpy(exe, "chrome.exe", sizeof(exe) - 1);
+        strncpy(args, url, sizeof(args) - 1);
+    }
+
+    if (manager_is_browser(exe))
+    {
+        char profile_arg[MAX_PATH + 64] = {0};
+        manager_profile_arg(exe, index, profile_arg, sizeof(profile_arg));
+        if (args[0] && manager_is_single_token(args) && manager_looks_like_url(args))
+        {
+            char app_url[GF_MAX_TASK_COMMAND] = {0};
+            manager_normalize_url(args, app_url, sizeof(app_url));
+            if (wm->config->startup_task_f11[index])
+            {
+                snprintf(launch_args, sizeof(launch_args),
+                         "%s --no-first-run --disable-first-run-ui --app=\"%s\"",
+                         profile_arg, app_url);
+            }
+            else
+            {
+                snprintf(launch_args, sizeof(launch_args),
+                         "%s --no-first-run --disable-first-run-ui --new-window \"%s\"",
+                         profile_arg, app_url);
+            }
+        }
+        else
+        {
+            snprintf(launch_args, sizeof(launch_args),
+                     "%s --no-first-run --disable-first-run-ui %s",
+                     profile_arg, args);
+        }
+        if (!manager_resolve_browser_exe(exe, launch_exe, sizeof(launch_exe)))
+        {
+            GF_LOG_ERROR("Browser not found for task %u: %s", index + 1, exe);
+            return NULL;
+        }
+    }
+    else
+    {
+        strncpy(launch_args, args, sizeof(launch_args) - 1);
+        strncpy(launch_exe, exe, sizeof(launch_exe) - 1);
+        if (send_f11)
+            *send_f11 = wm->config->startup_task_f11[index];
+    }
+
+    return manager_launch_task_window(launch_exe, launch_args[0] ? launch_args : NULL);
+}
+
 void gf_manager_launch_configured_tasks(gf_wm_t *wm)
 {
     if (!wm || !wm->config)
@@ -602,6 +679,8 @@ void gf_manager_launch_configured_tasks(gf_wm_t *wm)
     uint32_t launched_count = 0;
     if (count > GF_MAX_GRID_CELLS)
         count = GF_MAX_GRID_CELLS;
+    memset(g_manager.managed_task_windows, 0, sizeof(g_manager.managed_task_windows));
+    memset(g_manager.managed_task_f11, 0, sizeof(g_manager.managed_task_f11));
 
     for (uint32_t i = 0; i < count; i++)
     {
@@ -672,6 +751,11 @@ void gf_manager_launch_configured_tasks(gf_wm_t *wm)
         {
             launched_f11[launched_count] =
                 wm->config->startup_task_f11[i] && !manager_is_browser(exe);
+            if (i < GF_MANAGER_MAX_TASK_CONTROLS)
+            {
+                g_manager.managed_task_windows[i] = launched[launched_count];
+                g_manager.managed_task_f11[i] = launched_f11[launched_count];
+            }
             launched_count++;
         }
         Sleep(manager_is_browser(exe) ? 300 : 150);
@@ -700,6 +784,45 @@ void gf_manager_launch_configured_tasks(gf_wm_t *wm)
     {
         Sleep(200);
         gf_wm_tile_all(wm);
+    }
+}
+
+void gf_manager_relaunch_missing_tasks(gf_wm_t *wm)
+{
+    if (!wm || !wm->config || !wm->config->auto_launch_tasks)
+        return;
+
+    uint32_t count = wm->config->rows * wm->config->cols;
+    if (count > GF_MANAGER_MAX_TASK_CONTROLS)
+        count = GF_MANAGER_MAX_TASK_CONTROLS;
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        const char *cmd = wm->config->startup_tasks[i];
+        while (*cmd == ' ' || *cmd == '\t')
+            cmd++;
+        if (!*cmd)
+            continue;
+
+        if (g_manager.managed_task_windows[i] && IsWindow(g_manager.managed_task_windows[i]))
+            continue;
+
+        bool send_f11 = false;
+        HWND hwnd = manager_launch_configured_task(wm, i, &send_f11);
+        if (!hwnd)
+            continue;
+
+        g_manager.managed_task_windows[i] = hwnd;
+        g_manager.managed_task_f11[i] = send_f11;
+        gf_wm_add_window(wm, (gf_handle_t)(uintptr_t)hwnd, wm->active_workspace);
+        gf_wm_tile_all(wm);
+        if (send_f11)
+            manager_send_f11(hwnd);
+        for (int pass = 0; pass < 4; pass++)
+        {
+            Sleep(150);
+            gf_wm_tile_all(wm);
+        }
     }
 }
 

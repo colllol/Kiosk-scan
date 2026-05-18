@@ -15,7 +15,7 @@ python main.py
 
 Hoặc sử dụng uvicorn trực tiếp:
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 5000
+uvicorn main:app --reload --host localhost --port 5000
 ```
 
 ## API Endpoints

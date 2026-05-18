@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <string.h>
 #include <windows.h>
 
 static volatile bool g_running = true;
@@ -32,11 +33,136 @@ signal_handler(int sig)
     g_running = false;
 }
 
+static bool file_exists(const char *path)
+{
+    DWORD attr = GetFileAttributesA(path);
+    return attr != INVALID_FILE_ATTRIBUTES && !(attr & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+static bool dir_exists(const char *path)
+{
+    DWORD attr = GetFileAttributesA(path);
+    return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+static void dirname_in_place(char *path)
+{
+    char *last = strrchr(path, '\\');
+    if (!last)
+        last = strrchr(path, '/');
+    if (last)
+        *last = '\0';
+}
+
+static bool find_app_root(char *out_dir, size_t out_size)
+{
+    char dir[MAX_PATH] = {0};
+    char backend_main[MAX_PATH] = {0};
+    char frontend_index[MAX_PATH] = {0};
+
+    if (!GetModuleFileNameA(NULL, dir, sizeof(dir)))
+        return false;
+    dirname_in_place(dir);
+
+    for (int i = 0; i < 8; i++)
+    {
+        snprintf(backend_main, sizeof(backend_main), "%s\\backend\\main.py", dir);
+        snprintf(frontend_index, sizeof(frontend_index), "%s\\frontend\\index.html", dir);
+        if (file_exists(backend_main) && file_exists(frontend_index))
+        {
+            strncpy(out_dir, dir, out_size - 1);
+            out_dir[out_size - 1] = '\0';
+            return true;
+        }
+        dirname_in_place(dir);
+        if (!dir[0])
+            return false;
+    }
+
+    return false;
+}
+
+static void start_python_script_hidden(const char *working_dir, const char *script_path)
+{
+    char exe[MAX_PATH] = {0};
+    char params[MAX_PATH * 2] = {0};
+    SHELLEXECUTEINFOA sei = {0};
+
+    snprintf(exe, sizeof(exe), "%s\\venv\\Scripts\\pythonw.exe", working_dir);
+    if (!file_exists(exe))
+        strncpy(exe, "pythonw.exe", sizeof(exe) - 1);
+
+    snprintf(params, sizeof(params), "\"%s\"", script_path);
+
+    sei.cbSize = sizeof(sei);
+    sei.lpVerb = "open";
+    sei.lpFile = exe;
+    sei.lpParameters = params;
+    sei.lpDirectory = working_dir;
+    sei.nShow = SW_HIDE;
+
+    if (!ShellExecuteExA(&sei))
+    {
+        sei.lpFile = "python.exe";
+        ShellExecuteExA(&sei);
+    }
+}
+
+static void start_backend_hidden(const char *app_root)
+{
+    char backend_dir[MAX_PATH] = {0};
+    char main_py[MAX_PATH] = {0};
+
+    snprintf(backend_dir, sizeof(backend_dir), "%s\\backend", app_root);
+    snprintf(main_py, sizeof(main_py), "%s\\main.py", backend_dir);
+    if (!dir_exists(backend_dir) || !file_exists(main_py))
+        return;
+
+    start_python_script_hidden(backend_dir, main_py);
+}
+
+static void start_frontend_hidden(const char *app_root)
+{
+    char frontend_dir[MAX_PATH] = {0};
+    SHELLEXECUTEINFOA sei = {0};
+
+    snprintf(frontend_dir, sizeof(frontend_dir), "%s\\frontend", app_root);
+    if (!dir_exists(frontend_dir))
+        return;
+
+    sei.cbSize = sizeof(sei);
+    sei.lpVerb = "open";
+    sei.lpFile = "pythonw.exe";
+    sei.lpParameters = "-m http.server 3000 --bind localhost";
+    sei.lpDirectory = frontend_dir;
+    sei.nShow = SW_HIDE;
+
+    if (!ShellExecuteExA(&sei))
+    {
+        sei.lpFile = "python.exe";
+        ShellExecuteExA(&sei);
+    }
+}
+
+static void start_kiosk_services_hidden(void)
+{
+    char app_root[MAX_PATH] = {0};
+
+    if (!find_app_root(app_root, sizeof(app_root)))
+        return;
+
+    start_backend_hidden(app_root);
+    start_frontend_hidden(app_root);
+    Sleep(1500);
+}
+
 int
 server_main(int argc, char *argv[])
 {
     (void)argc; (void)argv;
 
+    ShowWindow(GetConsoleWindow(), SW_HIDE);
+    start_kiosk_services_hidden();
     printf("GridFlux WM Server starting...\n");
 
     /* Setup logging */
@@ -114,6 +240,7 @@ server_main(int argc, char *argv[])
 
     /* Main loop */
     DWORD last_auto_tile = GetTickCount();
+    DWORD last_task_check = GetTickCount();
     while (g_running && gf_manager_is_running())
     {
         /* Pump platform events */
@@ -145,6 +272,15 @@ server_main(int argc, char *argv[])
             {
                 gf_wm_tile_all(wm);
                 last_auto_tile = now;
+            }
+        }
+
+        {
+            DWORD now = GetTickCount();
+            if (now - last_task_check >= 1000)
+            {
+                gf_manager_relaunch_missing_tasks(wm);
+                last_task_check = now;
             }
         }
 

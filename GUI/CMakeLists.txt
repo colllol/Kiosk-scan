@@ -104,13 +104,10 @@ if(BUILD_SERVER)
         WIN32 TRUE  # GUI subsystem (no console window)
         OUTPUT_NAME "gridflux"
     )
-    # Actually we want console for debugging initially
     if(MSVC)
         set_target_properties(gridflux-server PROPERTIES
-            LINK_FLAGS "/SUBSYSTEM:CONSOLE"
+            LINK_FLAGS "/ENTRY:mainCRTStartup"
         )
-    else()
-        target_link_options(gridflux-server PRIVATE -Wl,-subsystem,console)
     endif()
 endif()
 

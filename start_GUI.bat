@@ -35,8 +35,8 @@ echo     "Kiosk"
 echo   ],
 echo.
 echo   "startup_tasks": [
-echo     "http://127.0.0.1:3000/index3.html",
-echo     "http://127.0.0.1:3000/index2.html"
+echo     "http://localhost:3000/index4.html",
+echo     "http://localhost:3000/index2.html"
 echo   ],
 echo.
 echo   "startup_task_f11": [
@@ -57,7 +57,7 @@ if exist "%~dp0backend\venv\Scripts\pythonw.exe" (
 )
 
 echo [FRONTEND] Starting HTTP server on port 3000...
-start "" /D "%~dp0frontend" /B pythonw.exe -m http.server 3000
+start "" /D "%~dp0frontend" /B pythonw.exe -m http.server 3000 --bind localhost
 
 timeout /t 2 /nobreak > nul
 
