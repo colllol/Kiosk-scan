@@ -132,14 +132,14 @@ static void start_frontend_hidden(const char *app_root)
 
     sei.cbSize = sizeof(sei);
     sei.lpVerb = "open";
-    sei.lpFile = "pythonw.exe";
-    sei.lpParameters = "-m http.server 3000 --bind localhost";
+    sei.lpFile = "python.exe";
+    sei.lpParameters = "-m http.server 3000 --bind 127.0.0.1";
     sei.lpDirectory = frontend_dir;
     sei.nShow = SW_HIDE;
 
     if (!ShellExecuteExA(&sei))
     {
-        sei.lpFile = "python.exe";
+        sei.lpFile = "py.exe";
         ShellExecuteExA(&sei);
     }
 }
@@ -160,6 +160,15 @@ int
 server_main(int argc, char *argv[])
 {
     (void)argc; (void)argv;
+
+    HANDLE instance_mutex = CreateMutexA(NULL, TRUE, "Local\\GridFluxSingleton");
+    if (!instance_mutex)
+        return 0;
+    if (GetLastError() == ERROR_ALREADY_EXISTS)
+    {
+        CloseHandle(instance_mutex);
+        return 0;
+    }
 
     ShowWindow(GetConsoleWindow(), SW_HIDE);
     start_kiosk_services_hidden();
@@ -182,6 +191,8 @@ server_main(int argc, char *argv[])
         if (gf_config_default(&cfg) != GF_SUCCESS)
         {
             fprintf(stderr, "Fatal: failed to create default config\n");
+            ReleaseMutex(instance_mutex);
+            CloseHandle(instance_mutex);
             return 1;
         }
         gf_config_save(path, cfg);
@@ -196,6 +207,8 @@ server_main(int argc, char *argv[])
     {
         fprintf(stderr, "Fatal: failed to create WM\n");
         gf_config_free(cfg);
+        ReleaseMutex(instance_mutex);
+        CloseHandle(instance_mutex);
         return 1;
     }
 
@@ -205,6 +218,8 @@ server_main(int argc, char *argv[])
         fprintf(stderr, "Fatal: WM init failed\n");
         gf_wm_destroy(wm);
         gf_config_free(cfg);
+        ReleaseMutex(instance_mutex);
+        CloseHandle(instance_mutex);
         return 1;
     }
 
@@ -294,6 +309,8 @@ server_main(int argc, char *argv[])
     if (ipc) gf_ipc_close(ipc);
     gf_config_free(cfg);
     gf_manager_destroy();
+    ReleaseMutex(instance_mutex);
+    CloseHandle(instance_mutex);
 
     printf("GridFlux WM Server stopped.\n");
     return 0;

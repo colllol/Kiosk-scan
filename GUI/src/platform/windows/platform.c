@@ -65,6 +65,31 @@ win32_get_visible_frame(HWND hwnd, RECT *out)
     return GetWindowRect(hwnd, out) != 0;
 }
 
+static void
+win32_lock_caption_buttons(HWND hwnd)
+{
+    HMENU menu;
+
+    if (!IsWindow(hwnd))
+        return;
+
+    menu = GetSystemMenu(hwnd, FALSE);
+    if (menu)
+    {
+        EnableMenuItem(menu, SC_CLOSE, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
+        EnableMenuItem(menu, SC_MINIMIZE, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
+        EnableMenuItem(menu, SC_MAXIMIZE, MF_BYCOMMAND | MF_DISABLED | MF_GRAYED);
+        DrawMenuBar(hwnd);
+    }
+
+    if (IsIconic(hwnd) || IsZoomed(hwnd))
+        ShowWindow(hwnd, SW_RESTORE);
+
+    SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                 SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+
 /* Refresh the active monitor cache */
 static void
 gf_win32_update_monitor_info(void)
@@ -211,6 +236,9 @@ win32_window_set_geometry(gf_display_t display, gf_handle_t window,
     HWND hwnd = gf_handle_to_hwnd(window);
     if (!IsWindow(hwnd))
         return GF_ERROR_PLATFORM_ERROR;
+
+    if (flags & GF_GEOMETRY_LOCK_CAPTION_BUTTONS)
+        win32_lock_caption_buttons(hwnd);
 
     int x = geom->x;
     int y = geom->y;

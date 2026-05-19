@@ -315,7 +315,9 @@ def incremental_train(data_yaml: str) -> bool:
         
         if os.path.exists(best_weights):
             # Copy weights mới ghi đè lên best.pt
-            shutil.copy2(best_weights, BEST_PT)
+            tmp_best = BEST_PT + ".tmp"
+            shutil.copy2(best_weights, tmp_best)
+            os.replace(tmp_best, BEST_PT)
             save_version(version)
             print(f"[TRAIN-WORKER] ✅ Model UPDATED DIRECTLY: {BEST_PT} (v{version})")
 

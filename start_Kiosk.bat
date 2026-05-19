@@ -1,69 +1,66 @@
 @echo off
-REM ============================================
-REM KIOSK SCAN SYSTEM - AUTO START
-REM ============================================
-REM Chạy Backend (main.py) + Frontend (start-frontend.bat)
-REM Được launch bởi start_Kiosk.vbs (ẩn cửa sổ).
-REM ============================================
+setlocal
 
-REM Set working directory to script location (luôn đúng dù gọi từ đâu)
+REM KIOSK SCAN SYSTEM - AUTO START
+REM Starts backend, training worker, and frontend server without opening a browser.
+
 cd /d "%~dp0"
 
-REM --- BACKEND SETUP ---
-set "BACKEND_DIR=backend"
-set "MAIN_PY=backend\main.py"
+set "ROOT_DIR=%~dp0"
+set "BACKEND_DIR=%ROOT_DIR%backend"
+set "FRONTEND_BAT=%ROOT_DIR%start-frontend.bat"
+set "BACKEND_MAIN=%BACKEND_DIR%\main.py"
+set "TRAIN_WORKER=%BACKEND_DIR%\train_worker.py"
 
-REM Check if main.py exists
-if not exist "%MAIN_PY%" (
-    echo ❌ main.py not found at %MAIN_PY%!
-    echo Please ensure backend files are in place.
-    timeout /t 5 /nobreak > nul
+echo [KIOSK] Starting kiosk services...
+
+if not exist "%BACKEND_MAIN%" (
+    echo [ERROR] Missing backend file: %BACKEND_MAIN%
+    timeout /t 5 /nobreak >nul
     exit /b 1
 )
 
-REM Check if Python is available
+if not exist "%TRAIN_WORKER%" (
+    echo [ERROR] Missing train worker file: %TRAIN_WORKER%
+    timeout /t 5 /nobreak >nul
+    exit /b 1
+)
+
+if not exist "%FRONTEND_BAT%" (
+    echo [ERROR] Missing frontend starter: %FRONTEND_BAT%
+    timeout /t 5 /nobreak >nul
+    exit /b 1
+)
+
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Python not found! Please install Python 3.10+.
-    timeout /t 5 /nobreak > nul
+    echo [ERROR] Python not found. Please install Python 3.10+ and add it to PATH.
+    timeout /t 5 /nobreak >nul
     exit /b 1
 )
 
-REM Create required directories
-if not exist "backend\uploads" mkdir backend\uploads
-if not exist "backend\pdfs" mkdir backend\pdfs
-if not exist "backend\train_staging" mkdir backend\train_staging
-if not exist "backend\train_dataset" mkdir backend\train_dataset
+if not exist "%BACKEND_DIR%\uploads" mkdir "%BACKEND_DIR%\uploads"
+if not exist "%BACKEND_DIR%\pdfs" mkdir "%BACKEND_DIR%\pdfs"
+if not exist "%BACKEND_DIR%\train_staging" mkdir "%BACKEND_DIR%\train_staging"
+if not exist "%BACKEND_DIR%\train_dataset" mkdir "%BACKEND_DIR%\train_dataset"
 
-echo [KIOSK] Starting Backend (main.py) on port 5000...
+echo [KIOSK] Starting backend on port 5000...
+pushd "%BACKEND_DIR%"
+start "Kiosk Backend" /B python.exe "%BACKEND_MAIN%"
 
-REM Start backend (main.py) - hidden (dùng pythonw.exe để không hiện cửa sổ console)
-start "" /B pythonw.exe "%~dp0%MAIN_PY%" > nul 2>&1
+timeout /t 5 /nobreak >nul
 
-REM Wait for backend to initialize
-timeout /t 5 /nobreak > nul
+echo [KIOSK] Starting training worker...
+start "Kiosk Train Worker" /B python.exe "%TRAIN_WORKER%"
+popd
 
-echo [KIOSK] Starting YOLO Training Worker...
-
-REM Start YOLO training worker (chạy background, tự động train từ ảnh upload)
-start "" /B pythonw.exe "%~dp0backend\train_worker.py" > nul 2>&1
-
-echo [KIOSK] Starting Frontend on port 3000...
-
-REM --- FRONTEND ---
-if exist "start-frontend.bat" (
-    call "start-frontend.bat"
-) else (
-    echo ❌ start-frontend.bat not found!
-    timeout /t 5 /nobreak > nul
+echo [KIOSK] Starting frontend on port 3000...
+call "%FRONTEND_BAT%"
+if errorlevel 1 (
+    echo [ERROR] Frontend failed to start.
+    timeout /t 5 /nobreak >nul
     exit /b 1
 )
 
-timeout /t 3 /nobreak > nul
-
-REM Open browser to frontend
-start "" "http://localhost:3000"
-
-REM Keep script alive briefly to allow services to start, then exit silently
-timeout /t 2 /nobreak > nul
-exit
+timeout /t 2 /nobreak >nul
+exit /b 0

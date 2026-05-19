@@ -269,13 +269,19 @@ gf_config_load(const char *path, gf_config_t **out_cfg)
     cfg->auto_launch_tasks = gf_json_get_bool(content, "auto_launch_tasks", false);
     cfg->workspace_count = (uint32_t)gf_json_get_int(content, "workspace_count", 3);
     gf_json_get_string_array(content, "startup_tasks", cfg->startup_tasks, GF_MAX_GRID_CELLS);
-    if (strcmp(cfg->startup_tasks[0], "http://127.0.0.1:3000/index3.html") == 0)
-        strncpy(cfg->startup_tasks[0], "http://localhost:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
-    if (strcmp(cfg->startup_tasks[0], "http://127.0.0.1:3000/index4.html") == 0)
-        strncpy(cfg->startup_tasks[0], "http://localhost:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
-    if (strcmp(cfg->startup_tasks[1], "http://127.0.0.1:3000/index2.html") == 0)
-        strncpy(cfg->startup_tasks[1], "http://localhost:3000/index2.html", GF_MAX_TASK_COMMAND - 1);
+    if (strcmp(cfg->startup_tasks[0], "http://localhost:3000/index3.html") == 0)
+        strncpy(cfg->startup_tasks[0], "http://127.0.0.1:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
+    if (strcmp(cfg->startup_tasks[0], "http://localhost:3000/index4.html") == 0)
+        strncpy(cfg->startup_tasks[0], "http://127.0.0.1:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
+    if (strcmp(cfg->startup_tasks[1], "http://localhost:3000/index2.html") == 0)
+        strncpy(cfg->startup_tasks[1], "http://127.0.0.1:3000/index2.html", GF_MAX_TASK_COMMAND - 1);
+    if (strcmp(cfg->startup_tasks[1], "http://localhost:3000/index4.html") == 0)
+        strncpy(cfg->startup_tasks[1], "http://127.0.0.1:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
     gf_json_get_bool_array(content, "startup_task_f11", cfg->startup_task_f11, GF_MAX_GRID_CELLS, false);
+    gf_json_get_bool_array(content, "startup_task_lock_buttons",
+                           cfg->startup_task_lock_buttons, GF_MAX_GRID_CELLS, false);
+    gf_json_get_bool_array(content, "startup_task_hide_buttons",
+                           cfg->startup_task_lock_buttons, GF_MAX_GRID_CELLS, false);
 
     const char *ws_arr_end;
     const char *ws_arr = gf_json_array_begin(content, "workspace_names", &ws_arr_end);
@@ -452,6 +458,18 @@ gf_config_save(const char *path, const gf_config_t *cfg)
     pos += snprintf(buf + pos, sizeof(buf) - pos,
         "  ],\n"
         "\n"
+        "  \"startup_task_lock_buttons\": [\n");
+
+    for (uint32_t i = 0; i < task_count; i++) {
+        pos += snprintf(buf + pos, sizeof(buf) - pos,
+            "    %s%s\n",
+            cfg->startup_task_lock_buttons[i] ? "true" : "false",
+            (i + 1 < task_count) ? "," : "");
+    }
+
+    pos += snprintf(buf + pos, sizeof(buf) - pos,
+        "  ],\n"
+        "\n"
         "  \"window_rules\": [\n");
 
     for (uint32_t i = 0; i < cfg->window_rules_count; i++) {
@@ -505,9 +523,12 @@ gf_config_default(gf_config_t **out_cfg)
     cfg->row_weights[1] = 7;
 
     for (uint32_t i = 0; i < GF_MAX_GRID_CELLS; i++)
+    {
         cfg->startup_task_f11[i] = false;
-    strncpy(cfg->startup_tasks[0], "http://localhost:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
-    strncpy(cfg->startup_tasks[1], "http://localhost:3000/index2.html", GF_MAX_TASK_COMMAND - 1);
+        cfg->startup_task_lock_buttons[i] = false;
+    }
+    strncpy(cfg->startup_tasks[0], "http://127.0.0.1:3000/index4.html", GF_MAX_TASK_COMMAND - 1);
+    strncpy(cfg->startup_tasks[1], "http://127.0.0.1:3000/index2.html", GF_MAX_TASK_COMMAND - 1);
     cfg->startup_task_f11[0] = true;
     cfg->startup_task_f11[1] = true;
 

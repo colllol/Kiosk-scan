@@ -1,32 +1,52 @@
-' KIOSK SCAN SYSTEM - Hidden Launcher (FIXED)
+' KIOSK SCAN SYSTEM - Hidden Launcher
+' Starts IDCheck.exe when available, then starts start_Kiosk.bat hidden.
 
-Dim shell, fso, scriptDir, batPath, idcheckPath
+Option Explicit
+
+Dim shell, fso, scriptDir, batPath, idcheckPath, logPath
 
 Set fso = CreateObject("Scripting.FileSystemObject")
-
-' Lấy thư mục chứa file .vbs
-scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-batPath = fso.BuildPath(scriptDir, "start_Kiosk.bat")
-
-' Kiểm tra file batch
-If Not fso.FileExists(batPath) Then
-    MsgBox "Không tìm thấy start_Kiosk.bat tại:" & vbCrLf & batPath, vbCritical, "Lỗi khởi động Kiosk"
-    WScript.Quit 1
-End If
-
 Set shell = CreateObject("WScript.Shell")
 
-' ====== RUN IDCheck.exe ======
+scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
+batPath = fso.BuildPath(scriptDir, "start_Kiosk.bat")
 idcheckPath = "C:\Program Files\HANEL eKYC\IDCheck.exe"
+logPath = fso.BuildPath(scriptDir, "kiosk-launch.log")
 
-If fso.FileExists(idcheckPath) Then
-    shell.Run """" & idcheckPath & """", 0, False
-Else
-    MsgBox "Không tìm thấy IDCheck.exe tại:" & vbCrLf & idcheckPath, vbCritical, "Lỗi eKYC"
+shell.CurrentDirectory = scriptDir
+
+If Not fso.FileExists(batPath) Then
+    WriteLog "ERROR: Missing batch file: " & batPath
+    MsgBox "Missing start_Kiosk.bat at:" & vbCrLf & batPath, vbCritical, "Kiosk startup error"
+    CleanupAndQuit 1
 End If
 
-' ====== RUN BACKEND ======
-shell.Run "cmd.exe /c """ & batPath & """", 0, False
+If fso.FileExists(idcheckPath) Then
+    WriteLog "Starting IDCheck: " & idcheckPath
+    shell.Run Quote(idcheckPath), 0, False
+Else
+    WriteLog "WARN: IDCheck.exe not found: " & idcheckPath
+End If
 
-Set shell = Nothing
-Set fso = Nothing
+WriteLog "Starting kiosk batch: " & batPath
+shell.Run "cmd.exe /c " & Quote(batPath), 0, False
+
+CleanupAndQuit 0
+
+Function Quote(value)
+    Quote = """" & value & """"
+End Function
+
+Sub WriteLog(message)
+    Dim logFile
+    Set logFile = fso.OpenTextFile(logPath, 8, True)
+    logFile.WriteLine "[" & Now & "] " & message
+    logFile.Close
+    Set logFile = Nothing
+End Sub
+
+Sub CleanupAndQuit(exitCode)
+    Set shell = Nothing
+    Set fso = Nothing
+    WScript.Quit exitCode
+End Sub

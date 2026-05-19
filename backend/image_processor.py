@@ -1,4 +1,5 @@
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Tuple
 
@@ -7,21 +8,59 @@ import numpy as np
 from PIL import Image
 
 # ================= YOLO =================
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+YOLO_BEST_PT = os.path.join(SCRIPT_DIR, "best.pt")
+
 try:
     from ultralytics import YOLO
 
     YOLO_AVAILABLE = True
     _yolo_det_model = None
+    _yolo_det_model_mtime = None
+    _yolo_det_model_lock = threading.Lock()
 
-    try:
-        _yolo_det_model = YOLO("best.pt")
-        print("[YOLO] Detection model loaded.")
-    except Exception:
-        print("[YOLO] No detection model found, using OpenCV fallback.")
+    def _reload_yolo_detection_model_if_changed(force=False):
+        global _yolo_det_model, _yolo_det_model_mtime
+
+        if not os.path.exists(YOLO_BEST_PT):
+            if force:
+                print(f"[YOLO] No detection model found at {YOLO_BEST_PT}, using OpenCV fallback.")
+            return _yolo_det_model
+
+        try:
+            mtime = os.path.getmtime(YOLO_BEST_PT)
+        except OSError as e:
+            print(f"[YOLO] Cannot stat detection model: {e}")
+            return _yolo_det_model
+
+        if not force and _yolo_det_model is not None and _yolo_det_model_mtime == mtime:
+            return _yolo_det_model
+
+        with _yolo_det_model_lock:
+            try:
+                current_mtime = os.path.getmtime(YOLO_BEST_PT)
+            except OSError as e:
+                print(f"[YOLO] Cannot stat detection model: {e}")
+                return _yolo_det_model
+
+            if not force and _yolo_det_model is not None and _yolo_det_model_mtime == current_mtime:
+                return _yolo_det_model
+
+            try:
+                _yolo_det_model = YOLO(YOLO_BEST_PT)
+                _yolo_det_model_mtime = current_mtime
+                print(f"[YOLO] Detection model loaded: {YOLO_BEST_PT}")
+            except Exception as e:
+                print(f"[YOLO] Failed to load detection model, using existing model or OpenCV fallback: {e}")
+
+        return _yolo_det_model
+
+    _reload_yolo_detection_model_if_changed(force=True)
 
 except ImportError:
     YOLO_AVAILABLE = False
     _yolo_det_model = None
+    _yolo_det_model_mtime = None
     print("[YOLO] Ultralytics not installed. Using OpenCV fallback only.")
 
 # ================= Lazy imports for heavy modules =================
@@ -394,10 +433,13 @@ def auto_crop_content(image: np.ndarray, border: int = 2) -> np.ndarray:
 # ================= YOLO Detection Functions =================
 
 def detect_document_yolo_bbox(cv_image, conf=0.15, iou=0.7, imgsz=320):
-    if not YOLO_AVAILABLE or _yolo_det_model is None:
+    if not YOLO_AVAILABLE:
         return None
     try:
-        results = _yolo_det_model(cv_image, conf=conf, iou=iou, imgsz=imgsz, verbose=False)
+        model = _reload_yolo_detection_model_if_changed()
+        if model is None:
+            return None
+        results = model(cv_image, conf=conf, iou=iou, imgsz=imgsz, verbose=False)
         if len(results[0].boxes) == 0:
             return None
         box = results[0].boxes.xyxy[0].cpu().numpy()

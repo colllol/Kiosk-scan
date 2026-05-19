@@ -164,6 +164,7 @@ typedef enum {
     GF_GEOMETRY_IGNORE_MINMAX   = 1 << 1,
     GF_GEOMETRY_BORDER_UPDATE   = 1 << 2,
     GF_GEOMETRY_RESIZE_IMMEDIATE = 1 << 3,
+    GF_GEOMETRY_LOCK_CAPTION_BUTTONS = 1 << 4,
 } gf_geom_flags_t;
 
 /* ══════════════════════════════════════════════════════════════
@@ -285,6 +286,7 @@ typedef struct gf_config_t {
 
     char         startup_tasks[GF_MAX_GRID_CELLS][GF_MAX_TASK_COMMAND];
     bool         startup_task_f11[GF_MAX_GRID_CELLS];
+    bool         startup_task_lock_buttons[GF_MAX_GRID_CELLS];
 } gf_config_t;
 
 /* ══════════════════════════════════════════════════════════════

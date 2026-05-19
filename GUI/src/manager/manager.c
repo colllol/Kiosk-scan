@@ -46,6 +46,7 @@ typedef struct gf_manager_t {
     HWND task_labels[GF_MANAGER_MAX_TASK_CONTROLS];
     HWND task_edits[GF_MANAGER_MAX_TASK_CONTROLS];
     HWND task_f11[GF_MANAGER_MAX_TASK_CONTROLS];
+    HWND task_lock_buttons[GF_MANAGER_MAX_TASK_CONTROLS];
     HWND managed_task_windows[GF_MANAGER_MAX_TASK_CONTROLS];
     bool managed_task_f11[GF_MANAGER_MAX_TASK_CONTROLS];
     HWND lock_grids;
@@ -147,6 +148,7 @@ static void manager_update_task_visibility(uint32_t count)
         ShowWindow(g_manager.task_labels[i], show);
         ShowWindow(g_manager.task_edits[i], show);
         ShowWindow(g_manager.task_f11[i], show);
+        ShowWindow(g_manager.task_lock_buttons[i], show);
     }
 }
 
@@ -161,6 +163,9 @@ static void set_task_controls(gf_config_t *cfg)
         SendMessageA(g_manager.task_f11[i], BM_SETCHECK,
                      (i < count && cfg->startup_task_f11[i]) ? BST_CHECKED : BST_UNCHECKED,
                      0);
+        SendMessageA(g_manager.task_lock_buttons[i], BM_SETCHECK,
+                     (i < count && cfg->startup_task_lock_buttons[i]) ? BST_CHECKED : BST_UNCHECKED,
+                     0);
     }
 
     manager_update_task_visibility(count);
@@ -173,7 +178,11 @@ static void get_task_controls(gf_config_t *cfg)
         count = GF_MANAGER_MAX_TASK_CONTROLS;
 
     for (uint32_t i = 0; i < GF_MAX_GRID_CELLS; i++)
+    {
         cfg->startup_tasks[i][0] = '\0';
+        cfg->startup_task_f11[i] = false;
+        cfg->startup_task_lock_buttons[i] = false;
+    }
 
     for (uint32_t i = 0; i < count; i++)
     {
@@ -182,6 +191,8 @@ static void get_task_controls(gf_config_t *cfg)
                        GF_MAX_TASK_COMMAND);
         cfg->startup_task_f11[i] =
             SendMessageA(g_manager.task_f11[i], BM_GETCHECK, 0, 0) == BST_CHECKED;
+        cfg->startup_task_lock_buttons[i] =
+            SendMessageA(g_manager.task_lock_buttons[i], BM_GETCHECK, 0, 0) == BST_CHECKED;
     }
 }
 
@@ -569,14 +580,21 @@ static HWND manager_launch_task_window(const char *exe, const char *args)
     sei.lpParameters = args && args[0] ? args : NULL;
     sei.nShow = SW_SHOWNORMAL;
 
+    GF_LOG_INFO("Launching task: %s %s", exe, args ? args : "");
+
     if (!ShellExecuteExA(&sei))
+    {
+        GF_LOG_ERROR("ShellExecuteEx failed for %s: %lu", exe, GetLastError());
         return NULL;
+    }
 
     hwnd = manager_wait_for_process_window(sei.hProcess);
     if (!hwnd)
         hwnd = manager_wait_for_new_window(&before);
     if (sei.hProcess)
         CloseHandle(sei.hProcess);
+    if (!hwnd)
+        GF_LOG_WARN("No window detected for launched task: %s", exe);
     return hwnd;
 }
 
@@ -745,6 +763,7 @@ void gf_manager_launch_configured_tasks(gf_wm_t *wm)
             strncpy(launch_exe, exe, sizeof(launch_exe) - 1);
         }
 
+        GF_LOG_INFO("Startup task %u command: %s", i + 1, cmd);
         launched[launched_count] =
             manager_launch_task_window(launch_exe, launch_args[0] ? launch_args : NULL);
         if (launched[launched_count])
@@ -757,6 +776,10 @@ void gf_manager_launch_configured_tasks(gf_wm_t *wm)
                 g_manager.managed_task_f11[i] = launched_f11[launched_count];
             }
             launched_count++;
+        }
+        else
+        {
+            GF_LOG_WARN("Startup task %u launched but no top-level window was captured", i + 1);
         }
         Sleep(manager_is_browser(exe) ? 300 : 150);
     }
@@ -771,6 +794,9 @@ void gf_manager_launch_configured_tasks(gf_wm_t *wm)
 
     for (uint32_t i = 0; i < launched_count; i++)
         gf_wm_add_window(wm, (gf_handle_t)(uintptr_t)launched[i], ws_id);
+
+    if (launched_count == 0)
+        gf_wm_rescan_windows(wm);
 
     gf_wm_tile_all(wm);
 
@@ -803,7 +829,6 @@ void gf_manager_relaunch_missing_tasks(gf_wm_t *wm)
             cmd++;
         if (!*cmd)
             continue;
-
         if (g_manager.managed_task_windows[i] && IsWindow(g_manager.managed_task_windows[i]))
             continue;
 
@@ -1044,7 +1069,7 @@ static HWND add_check(HWND parent, const char *text, int id, int x, int y, int w
 static void manager_create_controls(HWND hwnd)
 {
     HFONT font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
-    HWND controls[80];
+    HWND controls[110];
     int n = 0;
 
     controls[n++] = add_label(hwnd, "GridFlux Manager", 18, 16, 220, 24);
@@ -1080,6 +1105,8 @@ static void manager_create_controls(HWND hwnd)
             add_text_edit(hwnd, ID_TASK_BASE + (int)i, edit_x, y, 108, 24);
         g_manager.task_f11[i] = controls[n++] =
             add_check(hwnd, "F11", ID_TASK_BASE + 100 + (int)i, edit_x + 112, y, 50, 24);
+        g_manager.task_lock_buttons[i] = controls[n++] =
+            add_check(hwnd, "Lock", ID_TASK_BASE + 200 + (int)i, edit_x + 164, y, 58, 24);
     }
 
     g_manager.auto_start = controls[n++] =
@@ -1181,7 +1208,7 @@ bool gf_manager_create(gf_wm_t *wm)
     RegisterClassA(&wc);
 
     g_manager.hwnd = CreateWindowExA(0, GF_MANAGER_CLASS, "GridFlux Manager",
-        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+        WS_OVERLAPPED | WS_CAPTION,
         CW_USEDEFAULT, CW_USEDEFAULT, 460, 700,
         NULL, NULL, inst, NULL);
 

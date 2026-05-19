@@ -66,8 +66,17 @@ gf_wm_apply_layout_cell(gf_wm_t *wm, gf_workspace_state_t *ws,
         return;
 
     gf_rect_t *geom = &cell->rect;
+    uint32_t flags = GF_GEOMETRY_APPLY_PADDING;
+    uint32_t index = row * ws->layout.cols + col;
+
+    if (index < GF_MAX_GRID_CELLS &&
+        wm->config->startup_task_lock_buttons[index])
+    {
+        flags |= GF_GEOMETRY_LOCK_CAPTION_BUTTONS;
+    }
+
     wm->platform->window_set_geometry(wm->display, cell->window, geom,
-                                       GF_GEOMETRY_APPLY_PADDING, wm->config);
+                                       flags, wm->config);
 }
 
 /* Tile all windows in a workspace according to the grid layout */
