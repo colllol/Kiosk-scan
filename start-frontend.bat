@@ -1,27 +1,28 @@
 @echo off
 setlocal
 
-REM KIOSK SCAN SYSTEM - FRONTEND
-REM Starts frontend HTTP server on port 3000.
+title Kiosk Scan Frontend
 
-cd /d "%~dp0frontend"
+set "ROOT_DIR=%~dp0"
+set "FRONTEND_DIR=%ROOT_DIR%frontend"
+set "PORT=3000"
 
-if not exist "index.html" (
-    echo [ERROR] index.html not found in frontend directory.
-    timeout /t 5 /nobreak >nul
+if not exist "%FRONTEND_DIR%\index.html" (
+    echo [ERROR] Missing frontend file: %FRONTEND_DIR%\index.html
     exit /b 1
 )
 
-python --version >nul 2>&1
+where python >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] Python not found. Please install Python 3.10+ and add it to PATH.
-    timeout /t 5 /nobreak >nul
+    echo [ERROR] Python not found. Install Python 3.10+ and add it to PATH.
     exit /b 1
 )
 
-echo [FRONTEND] Starting HTTP server on port 3000...
-start "" /B python.exe -m http.server 3000 --bind localhost > frontend-server.log 2> frontend-server.err.log
+echo [FRONTEND] Starting HTTP server on http://localhost:%PORT%
+echo [FRONTEND] Logs: %FRONTEND_DIR%\frontend-server.log
+
+cd /d "%FRONTEND_DIR%"
+start "Kiosk Frontend" /B python.exe -m http.server %PORT% --bind localhost > "%FRONTEND_DIR%\frontend-server.log" 2> "%FRONTEND_DIR%\frontend-server.err.log"
 
 timeout /t 2 /nobreak >nul
-echo [FRONTEND] Server started at http://localhost:3000
 exit /b 0

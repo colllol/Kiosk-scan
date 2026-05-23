@@ -55,7 +55,9 @@ try:
 
         return _yolo_det_model
 
-    _reload_yolo_detection_model_if_changed(force=True)
+    # Detection weights are loaded lazily only when backend-side detection is used.
+    # The kiosk frontend now performs document detection/cropping, so importing the
+    # backend should not pay the YOLO model load cost on startup.
 
 except ImportError:
     YOLO_AVAILABLE = False
@@ -862,6 +864,24 @@ def cv2_to_pil(cv_img):
     if cv_img.ndim == 2:
         return Image.fromarray(cv_img)
     return Image.fromarray(cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB))
+
+
+def rotate_pil_images_batch(image_list, enable_rotation=True):
+    """Rotate images with the lightweight OpenCV orientation detector only."""
+    if not image_list:
+        return []
+
+    results = []
+    for pil_img in image_list:
+        try:
+            cv_img = pil_to_cv2(pil_img.convert("RGB"))
+            if enable_rotation:
+                cv_img = rotate_image_opencv(cv_img)
+            results.append(cv2_to_pil(cv_img).convert("RGB"))
+        except Exception as e:
+            print(f"[ROTATE-ONLY ERROR] {e}")
+            results.append(pil_img.convert("RGB"))
+    return results
 
 
 # ================= Batch Processing =================

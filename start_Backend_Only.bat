@@ -1,67 +1,47 @@
 @echo off
-echo ============================================
-echo KIOSK BACKEND - AUTO START
-echo ============================================
-echo.
-echo This script will start the backend EXE only.
-echo Frontend should be accessed separately.
+setlocal
+
+title Kiosk Scan Backend EXE
+
+set "ROOT_DIR=%~dp0"
+set "DEPLOY_DIR=%ROOT_DIR%backend\deployment"
+set "BACKEND_EXE=%DEPLOY_DIR%\WebcamScan.exe"
+
+echo ========================================
+echo   Kiosk Scan - Backend EXE
+echo ========================================
 echo.
 
-REM Set working directory to script location
-cd /d "%~dp0"
-echo Working directory: %cd%
-echo.
-
-REM Check if backend EXE exists
-if not exist "backend\deployment\WebcamScan.exe" (
-    echo ❌ Backend EXE not found at backend\deployment\WebcamScan.exe!
-    echo Please build the backend first.
+if not exist "%BACKEND_EXE%" (
+    echo [ERROR] Backend EXE not found:
+    echo %BACKEND_EXE%
     echo.
+    echo Build it first with: backend\build.bat
     pause
     exit /b 1
 )
 
-REM Check if config.json exists in backend EXE directory
-if not exist "backend\deployment\config.json" (
-    echo ⚠️  config.json not found in EXE directory
-    echo Copying config.json from project root...
-    if exist "config.json" (
-        copy "config.json" "backend\deployment\config.json" > nul
-        echo ✓ Copied config.json
+if not exist "%DEPLOY_DIR%\config.json" (
+    if exist "%ROOT_DIR%config.json" (
+        echo [SETUP] Copying config.json to deployment...
+        copy /Y "%ROOT_DIR%config.json" "%DEPLOY_DIR%\config.json" >nul
     ) else (
-        echo ❌ config.json not found in project root!
+        echo [ERROR] Missing config.json in project root and deployment folder.
         pause
         exit /b 1
     )
 )
 
-echo ============================================
-echo STARTING BACKEND SERVER...
-echo ============================================
+if not exist "%DEPLOY_DIR%\uploads" mkdir "%DEPLOY_DIR%\uploads"
+if not exist "%DEPLOY_DIR%\pdfs" mkdir "%DEPLOY_DIR%\pdfs"
+
+echo [START] Backend API: http://localhost:5000
+echo [INFO] Press Ctrl+C to stop.
 echo.
 
-REM Create necessary directories
-if not exist "backend\deployment\uploads" mkdir "backend\deployment\uploads"
-if not exist "backend\deployment\pdfs" mkdir "backend\deployment\pdfs"
-echo ✓ Created uploads and pdfs directories
-echo.
-
-REM Start backend EXE
-echo Starting backend server on port 5000...
-echo.
-echo ============================================
-echo BACKEND SERVER LOGS
-echo ============================================
-echo.
-echo Press Ctrl+C to stop the server
-echo.
-
-REM Run backend EXE in foreground (shows logs)
-"backend\deployment\WebcamScan.exe"
+cd /d "%DEPLOY_DIR%"
+"%BACKEND_EXE%"
 
 echo.
-echo ============================================
-echo BACKEND SERVER STOPPED
-echo ============================================
-echo.
+echo [INFO] Backend stopped.
 pause

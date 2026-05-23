@@ -11,6 +11,7 @@ import { ImageList } from './components/ImageList.js';
 import { Lightbox } from './components/Lightbox.js';
 import { Toast } from './components/Toast.js';
 import { Api } from './components/Api.js';
+import { DocumentScanner } from './components/DocumentScanner.js';
 
 class App {
     constructor() {
@@ -23,6 +24,8 @@ class App {
             certifyBtn: document.getElementById('certify-btn'),
             resetBtn: document.getElementById('reset-btn'),
             flash: document.getElementById('flash'),
+            documentOverlay: document.getElementById('document-overlay'),
+            documentStatus: document.getElementById('document-status'),
             cameraError: document.getElementById('camera-error'),
             loadingOverlay: document.getElementById('loading-overlay'),
             lightbox: document.getElementById('lightbox'),
@@ -46,15 +49,17 @@ class App {
         this.imageList = null;
         this.lightbox = null;
         this.api = null;
+        this.documentScanner = null;
     }
 
     async init() {
         // Initialize toast
         this.toast = new Toast(this.elements.toastContainer);
+        this.documentScanner = new DocumentScanner();
 
         // Initialize components
         this.camera = new Camera(this.elements);
-        this.capture = new Capture(this.elements, this.imageStore);
+        this.capture = new Capture(this.elements, this.imageStore, this.documentScanner);
         this.imageList = new ImageList(this.elements, this.imageStore);
         this.lightbox = new Lightbox(this.elements, this.imageStore);
         this.api = new Api(this.imageStore, this.elements);
@@ -68,6 +73,9 @@ class App {
 
         // Initialize camera
         await this.camera.init();
+        this.documentScanner.init().then(() => {
+            this.documentScanner.startLiveDetection(this.elements.video, this.elements.documentOverlay, this.elements.documentStatus);
+        });
 
         // Handle video play
         this.elements.video.addEventListener('play', () => {
@@ -146,6 +154,7 @@ class App {
 
             // Stop camera stream
             this.camera?.stop();
+            this.documentScanner?.stopLiveDetection();
         });
     }
 }

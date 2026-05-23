@@ -1,109 +1,67 @@
 @echo off
-echo ==========================
-echo SIMPLE BUILD SCRIPT
-echo ==========================
-echo.
-echo This script builds the backend EXE with minimal configuration.
-echo For full configuration support, use build.bat instead.
+setlocal
+
+title Build Kiosk Backend EXE - Simple
+
+cd /d "%~dp0"
+
+echo ========================================
+echo   Simple Backend Build
+echo ========================================
 echo.
 
-REM Set error handling
-setlocal enabledelayedexpansion
+where python >nul 2>nul
+if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python 3.10+ and add it to PATH.
+    pause
+    exit /b 1
+)
 
-REM Check if PyInstaller is installed (try both command and module)
-where pyinstaller >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo [OK] PyInstaller command is available in PATH
-) else (
-    REM Try checking if PyInstaller module is available (note: capital P)
-    python -c "import PyInstaller" >nul 2>&1
-    if %ERRORLEVEL% EQU 0 (
-        echo [OK] PyInstaller module is available
-    ) else (
-        echo PyInstaller is not installed!
-        echo Installing PyInstaller...
-        pip install pyinstaller
-        
-        REM Check if installation succeeded
-        python -c "import PyInstaller" >nul 2>&1
-        if %ERRORLEVEL% EQU 0 (
-            echo [OK] PyInstaller module installed successfully
-        ) else (
-            echo [ERROR] Failed to install PyInstaller!
-            echo Please install manually: pip install pyinstaller
-            pause
-            exit /b 1
-        )
+if not exist "main.py" (
+    echo [ERROR] Missing main.py in %cd%
+    pause
+    exit /b 1
+)
+
+python -c "import PyInstaller" >nul 2>nul
+if errorlevel 1 (
+    echo [SETUP] Installing PyInstaller...
+    python -m pip install pyinstaller
+    if errorlevel 1 (
+        echo [ERROR] Failed to install PyInstaller.
+        pause
+        exit /b 1
     )
 )
 
-REM Clean previous build
 if exist "build" rmdir /s /q "build"
 if exist "dist" rmdir /s /q "dist"
 if exist "WebcamScan.spec" del /q "WebcamScan.spec"
 
-echo Building EXE...
+echo [BUILD] Running PyInstaller...
+python -m PyInstaller --onedir ^
+  --name "WebcamScan" ^
+  --add-data "..\config.json;." ^
+  --hidden-import=image_processor ^
+  --hidden-import=print_ticket ^
+  --hidden-import=config ^
+  --hidden-import=ultralytics ^
+  --hidden-import=pytesseract ^
+  --hidden-import=rembg ^
+  --hidden-import=onnxruntime ^
+  --hidden-import=cv2 ^
+  --hidden-import=uvicorn ^
+  --hidden-import=fastapi ^
+  --hidden-import=pydantic ^
+  main.py
 
-REM Run PyInstaller (try command first, then module)
-where pyinstaller >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    REM Use pyinstaller command
-    echo Using pyinstaller command...
-    pyinstaller --onedir ^
---name "WebcamScan" ^
---add-data "../config.json;." ^
---hidden-import=image_processor ^
---hidden-import=print_ticket ^
---hidden-import=config ^
---hidden-import=ultralytics ^
---hidden-import=pytesseract ^
---hidden-import=rembg ^
---hidden-import=onnxruntime ^
---hidden-import=cv2 ^
---hidden-import=uvicorn ^
---hidden-import=fastapi ^
---hidden-import=pydantic ^
-main.py
-) else (
-    REM Use python -m pyinstaller
-    echo Using python -m pyinstaller...
-    python -m PyInstaller --onedir ^
---name "WebcamScan" ^
---add-data "../config.json;." ^
---hidden-import=image_processor ^
---hidden-import=print_ticket ^
---hidden-import=config ^
---hidden-import=ultralytics ^
---hidden-import=pytesseract ^
---hidden-import=rembg ^
---hidden-import=onnxruntime ^
---hidden-import=cv2 ^
---hidden-import=uvicorn ^
---hidden-import=fastapi ^
---hidden-import=pydantic ^
-main.py
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Build failed.
+    pause
+    exit /b 1
 )
 
-if %ERRORLEVEL% EQU 0 (
-    echo.
-    echo ==========================
-    echo BUILD COMPLETE!
-    echo ==========================
-    echo.
-    echo EXE location: dist\WebcamScan\WebcamScan.exe
-    echo.
-    echo IMPORTANT: Copy config.json to the same directory as the EXE
-    echo.
-    echo To run:
-    echo   1. Copy config.json to dist\WebcamScan\
-    echo   2. Run dist\WebcamScan\WebcamScan.exe
-    echo.
-) else (
-    echo.
-    echo ==========================
-    echo BUILD FAILED!
-    echo ==========================
-    echo.
-)
-
+echo.
+echo [OK] Build complete: %cd%\dist\WebcamScan\WebcamScan.exe
 pause

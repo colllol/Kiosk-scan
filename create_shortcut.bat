@@ -1,15 +1,31 @@
 @echo off
-REM ============================================
-REM Create shortcut to start_Kiosk.vbs
-REM ============================================
-powershell -Command ^
-    $WSH = New-Object -ComObject WScript.Shell; ^
-    $SC = $WSH.CreateShortcut('%~dp0start_Kiosk.lnk'); ^
-    $SC.TargetPath = 'wscript.exe'; ^
-    $SC.Arguments = '"%~dp0start_Kiosk.vbs"'; ^
-    $SC.WorkingDirectory = '%~dp0'; ^
-    $SC.WindowStyle = 7; ^
-    $SC.Description = 'KIOSK Scan System - Hidden Launcher'; ^
-    $SC.Save(); ^
-    Write-Host 'Shortcut created: %~dp0start_Kiosk.lnk'
+setlocal
+
+set "ROOT_DIR=%~dp0"
+set "SHORTCUT=%ROOT_DIR%start_Kiosk.lnk"
+set "TARGET=%ROOT_DIR%start_Kiosk.vbs"
+
+if not exist "%TARGET%" (
+    echo [ERROR] Missing launcher: %TARGET%
+    pause
+    exit /b 1
+)
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$shell = New-Object -ComObject WScript.Shell; " ^
+  "$shortcut = $shell.CreateShortcut('%SHORTCUT%'); " ^
+  "$shortcut.TargetPath = 'wscript.exe'; " ^
+  "$shortcut.Arguments = '""%TARGET%""'; " ^
+  "$shortcut.WorkingDirectory = '%ROOT_DIR%'; " ^
+  "$shortcut.WindowStyle = 7; " ^
+  "$shortcut.Description = 'Kiosk Scan System'; " ^
+  "$shortcut.Save()"
+
+if errorlevel 1 (
+    echo [ERROR] Failed to create shortcut.
+    pause
+    exit /b 1
+)
+
+echo [OK] Shortcut created: %SHORTCUT%
 pause

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoCut Document Scanner</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="scanner">
+        <div class="camera-wrap">
+          <video id="camera" autoplay playsinline muted></video>
+          <canvas id="overlay"></canvas>
+          <div id="status" class="status">Đang tải OpenCV...</div>
+        </div>
+
+        <aside class="panel">
+          <div class="brand">
+            <span class="mark"></span>
+            <div>
+              <h1>AutoCut</h1>
+              <p>Quét tài liệu bằng YOLO và OpenCV</p>
+            </div>
+          </div>
+
+          <div class="controls">
+            <label class="file">
+              <span>Model YOLO ONNX</span>
+              <input id="modelInput" type="file" accept=".onnx" />
+            </label>
+            <button id="startBtn" type="button">Mở camera</button>
+            <button id="snapBtn" type="button" disabled>Chụp thủ công</button>
+            <button id="pdfBtn" type="button" disabled>Tạo PDF</button>
+          </div>
+
+          <div class="settings">
+            <label>
+              Ngưỡng phát hiện
+              <input id="scoreInput" type="range" min="0.1" max="0.9" step="0.05" value="0.55" />
+            </label>
+            <label>
+              Thời gian giữ khung
+              <input id="stableInput" type="range" min="400" max="2500" step="100" value="1100" />
+            </label>
+            <label class="check">
+              <input id="autoInput" type="checkbox" checked />
+              Tự động chụp khi tài liệu ổn định
+            </label>
+          </div>
+
+          <div class="thumbs">
+            <div class="thumb-head">
+              <strong>Ảnh đã crop</strong>
+              <button id="clearBtn" type="button" disabled>Xóa</button>
+            </div>
+            <div id="captures" class="captures"></div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="https://docs.opencv.org/4.10.0/opencv.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

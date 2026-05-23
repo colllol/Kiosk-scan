@@ -20,6 +20,7 @@ import uuid
 from datetime import datetime
 import io
 import sys
+import shutil
 import requests
 from print_ticket import print_ticket
 from PIL import Image
@@ -109,26 +110,16 @@ uploaded_images = {}
 @app.on_event("startup")
 async def preload_models():
     """
-    Chạy pipeline xử lý ảnh với một ảnh dummy nhỏ để ép tất cả các model
-    (YOLO, rembg, pytesseract, ppocr-lite) tải vào RAM ngay từ đầu.
+    Warm up only the lightweight OpenCV rotation path used by PDF export.
+    YOLO document detection/cropping now runs in the frontend.
     """
     try:
-        # Tạo ảnh dummy 100x100 pixel màu trắng
         dummy_pil = Image.new('RGB', (100, 100), color=(255, 255, 255))
         dummy_cv = cv2.cvtColor(np.array(dummy_pil), cv2.COLOR_RGB2BGR)
-
-        _ = image_processor.process_single_image(
-            dummy_cv,
-            mode="color",
-            force_full=False,
-            enable_rotation=True,       # bắt buộc load Tesseract
-            enable_bg_removal=True,     # bắt buộc load rembg
-            contour_method='canny',
-            preprocess='clahe'
-        )
-        print("[STARTUP] ✅ All image processing models preloaded successfully.")
+        _ = image_processor.rotate_image_opencv(dummy_cv)
+        print("[STARTUP] OpenCV rotation path warmed up successfully.")
     except Exception as e:
-        print(f"[STARTUP] ⚠️ Model preload warning (non-critical): {e}")
+        print(f"[STARTUP] OpenCV warmup warning (non-critical): {e}")
 
 # ========== Models ==========
 class ExportRequest(BaseModel):
@@ -424,13 +415,9 @@ def create_pdf_from_images(image_paths, output_path, enable_rotation=False, enab
         print(f"[PDF] Step 1 - Opened {len(pil_images)} images in {time.time() - step_start:.3f}s")
 
         step_start = time.time()
-        processed_images = image_processor.process_scanned_images_batch_with_crop(
+        processed_images = image_processor.rotate_pil_images_batch(
             pil_images,
-            mode="color",
-            force_full=False,
             enable_rotation=enable_rotation,
-            enable_bg_removal=enable_bg_removal,
-            contour_method='canny'
         )
         print(f"[PDF] Step 2 - Batch processed images in {time.time() - step_start:.3f}s")
 
@@ -479,6 +466,43 @@ def create_pdf_from_images(image_paths, output_path, enable_rotation=False, enab
 @app.get("/")
 async def root():
     return {"message": "Webcam Scan Document API is running"}
+
+def ensure_document_onnx_model():
+    """Serve a browser-friendly ONNX model generated from backend/best.pt."""
+    best_pt = os.path.join(SCRIPT_DIR, "best.pt")
+    best_onnx = os.path.join(SCRIPT_DIR, "best.onnx")
+    autocut_onnx = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "autocut", "best.onnx"))
+
+    if os.path.exists(best_onnx) and (
+        not os.path.exists(best_pt) or os.path.getmtime(best_onnx) >= os.path.getmtime(best_pt)
+    ):
+        return best_onnx
+
+    if os.path.exists(best_pt):
+        try:
+            from ultralytics import YOLO
+
+            print(f"[MODEL] Exporting {best_pt} to ONNX for frontend detection...")
+            model = YOLO(best_pt)
+            exported = model.export(format="onnx", imgsz=640, opset=12, simplify=False)
+            exported_path = exported if isinstance(exported, str) else best_onnx
+            if os.path.exists(exported_path) and os.path.abspath(exported_path) != os.path.abspath(best_onnx):
+                shutil.copy2(exported_path, best_onnx)
+            if os.path.exists(best_onnx):
+                print(f"[MODEL] ONNX model ready: {best_onnx}")
+                return best_onnx
+        except Exception as e:
+            print(f"[MODEL] Could not export best.pt to ONNX: {e}")
+
+    if os.path.exists(autocut_onnx):
+        return autocut_onnx
+
+    raise HTTPException(status_code=404, detail="Không tìm thấy model YOLO ONNX")
+
+@app.get("/api/model/document.onnx")
+async def get_document_model():
+    model_path = ensure_document_onnx_model()
+    return FileResponse(model_path, media_type="application/octet-stream", filename="document.onnx")
 
 @app.post("/api/upload")
 async def upload_image(file: UploadFile = File(...)):
@@ -533,8 +557,8 @@ async def export_pdf(request: ExportRequest, background_tasks: BackgroundTasks):
         pdf_filename = generate_pdf_filename()
         pdf_path = os.path.join(PDF_DIR_ABS, pdf_filename)
 
-        # Mặc định bật rotation và background removal (có thể cấu hình sau)
-        success = create_pdf_from_images(image_paths, pdf_path, enable_rotation=True, enable_bg_removal=True)
+        # Frontend already detects and crops documents. Backend only rotates with OpenCV and creates the PDF.
+        success = create_pdf_from_images(image_paths, pdf_path, enable_rotation=True, enable_bg_removal=False)
         if not success:
             raise HTTPException(status_code=500, detail="Lỗi khi tạo PDF")
         print(f"PDF created: {pdf_path}")

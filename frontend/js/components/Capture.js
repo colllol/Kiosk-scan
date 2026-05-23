@@ -3,9 +3,10 @@ import { ImageModel } from '../models/ImageModel.js';
 import { state } from '../config.js';
 
 class Capture {
-    constructor(elements, imageStore) {
+    constructor(elements, imageStore, documentScanner = null) {
         this.elements = elements;
         this.imageStore = imageStore;
+        this.documentScanner = documentScanner;
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d', {
             alpha: false,
@@ -16,7 +17,7 @@ class Capture {
         this.cachedHeight = 0;
     }
 
-    capture() {
+    async capture() {
         if (state.isLoading) return;
 
         const video = this.elements.video;
@@ -49,13 +50,28 @@ class Capture {
         this.ctx.drawImage(video, -videoWidth / 2, -videoHeight / 2, videoWidth, videoHeight);
         this.ctx.restore();
 
-        // Lưu ảnh gốc (đã xoay) - Backend sẽ xử lý auto-crop
-        this.saveImage(outputWidth, outputHeight);
+        // Frontend crops/deskews the rotated frame. Backend only rotates again if needed and creates PDF.
+        let outputCanvas = this.canvas;
+        if (this.documentScanner) {
+            try {
+                const cropped = await this.documentScanner.cropCanvas(this.canvas);
+                if (cropped) {
+                    outputCanvas = cropped;
+                } else {
+                    window.App?.toast?.show('Khong phat hien ro tai lieu, da luu nguyen khung', 'info');
+                }
+            } catch (error) {
+                console.warn('[Capture] Frontend document crop failed:', error);
+                window.App?.toast?.show('Crop anh loi, da luu nguyen khung', 'error');
+            }
+        }
+
+        await this.saveImage(outputCanvas);
     }
 
-    async saveImage(width, height) {
-        const blob = await new Promise(resolve => this.canvas.toBlob(resolve, 'image/png'));
-        const imageModel = new ImageModel(blob, width, height);
+    async saveImage(sourceCanvas) {
+        const blob = await new Promise(resolve => sourceCanvas.toBlob(resolve, 'image/png'));
+        const imageModel = new ImageModel(blob, sourceCanvas.width, sourceCanvas.height);
         this.imageStore.add(imageModel);
         this.batchUpdateUI(imageModel);
         window.App?.toast?.show('Đã chụp ảnh', 'success');

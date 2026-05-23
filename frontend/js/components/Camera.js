@@ -7,6 +7,7 @@ class Camera {
     constructor(elements) {
         this.elements = elements;
         this.stream = null;
+        this.resizeHandler = null;
     }
 
     async init() {
@@ -16,53 +17,64 @@ class Camera {
                     facingMode: { ideal: 'environment' },
                     width: { ideal: 3840 },
                     height: { ideal: 2160 },
-                    // Yêu cầu góc nhìn rộng nhất
+                    // Request the widest practical camera frame.
                     // advanced: [
-                    //     { focusMode: '0.27' },  // Tự động chỉnh tiêu cự liên tục
-                    //     { focusDistance: { min: 0, max: 2 } }  // Cho phép điều chỉnh khoảng cách
+                    //     { focusMode: 'continuous' },
+                    //     { focusDistance: { min: 0, max: 2 } }
                     // ]
                 },
                 audio: false
             };
 
             this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-            // Khởi tạo camera không cần phát hiện tài liệu
             state.stream = this.stream;
             this.elements.video.srcObject = this.stream;
 
             this.elements.video.onloadedmetadata = () => {
                 const video = this.elements.video;
                 const container = video.parentElement;
-
                 const { videoWidth, videoHeight } = video;
-
-                // Tính tỉ lệ hiển thị sau khi xoay 90 độ
                 const rotatedAspectRatio = videoHeight / videoWidth;
 
-                // Áp dụng aspect-ratio cho container
-                container.style.aspectRatio = String(rotatedAspectRatio);
-                container.style.height = 'auto';          // bỏ chiều cao cố định
-                container.style.maxHeight = '100%';       // giới hạn nếu cần
+                const layoutRotatedVideo = () => {
+                    const rect = container.getBoundingClientRect();
+                    if (!rect.width || !rect.height) return;
 
-                // Thiết lập video
-                video.style.transform = 'scale(1)';
-                video.style.width = '100%';
-                video.style.height = '100%';
+                    const displayWidth = Math.min(rect.width, rect.height * rotatedAspectRatio);
+                    const displayHeight = Math.min(rect.height, rect.width / rotatedAspectRatio);
+
+                    // The element is rotated 90deg, so its pre-transform dimensions are swapped.
+                    video.style.width = `${displayHeight}px`;
+                    video.style.height = `${displayWidth}px`;
+                };
+
+                video.style.position = 'absolute';
+                video.style.left = '50%';
+                video.style.top = '50%';
+                video.style.transform = 'translate(-50%, -50%) rotate(90deg) scale(1)';
+                video.style.transformOrigin = 'center center';
                 video.style.maxWidth = 'none';
                 video.style.maxHeight = 'none';
-                video.style.objectFit = 'fill';
+                video.style.objectFit = 'contain';
+                layoutRotatedVideo();
+
+                if (this.resizeHandler) {
+                    window.removeEventListener('resize', this.resizeHandler);
+                }
+                this.resizeHandler = layoutRotatedVideo;
+                window.addEventListener('resize', this.resizeHandler);
 
                 video.play();
                 this.checkCameraCapabilities();
             };
-            window.App?.toast?.show('Camera đã sẵn sàng', 'success');
+            window.App?.toast?.show('Camera da san sang', 'success');
             return true;
         } catch (error) {
             console.error('Camera error:', error);
             this.elements.cameraError.classList.remove('hidden');
             this.elements.video.classList.add('hidden');
-                this.elements.video.style.transform = '';
-            window.App?.toast?.show('Không thể truy cập camera. Vui lòng cấp quyền.', 'error');
+            this.elements.video.style.transform = '';
+            window.App?.toast?.show('Khong the truy cap camera. Vui long cap quyen.', 'error');
             return false;
         }
     }
@@ -80,12 +92,11 @@ class Camera {
             this.stream.getTracks().forEach(track => track.stop());
             this.stream = null;
         }
+        if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+            this.resizeHandler = null;
+        }
     }
-
-    // Hàm này không còn cần thiết cho việc chụp chính vì đã xử lý trong Capture.js
-    // async captureFullFrame() {
-    //     // Deprecated in favor of Capture.js logic
-    // }
 
     startDocumentDetection() {
         // Empty function to maintain compatibility

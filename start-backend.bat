@@ -1,45 +1,71 @@
 @echo off
-chcp 65001 >nul
+setlocal
+
+title Kiosk Scan Backend
+
+set "ROOT_DIR=%~dp0"
+set "BACKEND_DIR=%ROOT_DIR%backend"
+set "VENV_DIR=%BACKEND_DIR%\venv"
+set "PYTHON_EXE=%VENV_DIR%\Scripts\python.exe"
+
 echo ========================================
-echo  Webcam Scan Document - Backend
+echo   Kiosk Scan - Backend
 echo ========================================
 echo.
-echo  Đang khởi động FastAPI server...
-echo.
 
-cd backend
-
-:: Kiểm tra Python
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Không tìm thấy Python. Vui lòng cài đặt Python trước.
+if not exist "%BACKEND_DIR%\main.py" (
+    echo [ERROR] Missing backend file: %BACKEND_DIR%\main.py
     pause
     exit /b 1
 )
 
-:: Kiểm tra và cài đặt dependencies
-echo [1/2] Kiểm tra dependencies...
-if not exist "venv" (
-    echo [INFO] Tạo virtual environment...
-    python -m venv venv
+where python >nul 2>nul
+if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python 3.10+ and add it to PATH.
+    pause
+    exit /b 1
 )
 
-:: Activate virtual environment
-call venv\Scripts\activate.bat
+if not exist "%VENV_DIR%\Scripts\activate.bat" (
+    echo [SETUP] Creating virtual environment...
+    python -m venv "%VENV_DIR%"
+    if errorlevel 1 (
+        echo [ERROR] Failed to create virtual environment.
+        pause
+        exit /b 1
+    )
+)
 
-:: Install requirements
-pip install -r requirements.txt -q
+if not exist "%PYTHON_EXE%" (
+    echo [ERROR] Missing venv Python: %PYTHON_EXE%
+    pause
+    exit /b 1
+)
 
-:: Chạy server
-echo [2/2] Khởi động server trên http://localhost:5000
+if exist "%BACKEND_DIR%\requirements.txt" (
+    echo [SETUP] Installing backend dependencies...
+    "%PYTHON_EXE%" -m pip install -r "%BACKEND_DIR%\requirements.txt"
+    if errorlevel 1 (
+        echo [ERROR] Failed to install backend dependencies.
+        pause
+        exit /b 1
+    )
+) else (
+    echo [WARN] requirements.txt not found. Starting with current environment.
+)
+
+if not exist "%BACKEND_DIR%\uploads" mkdir "%BACKEND_DIR%\uploads"
+if not exist "%BACKEND_DIR%\pdfs" mkdir "%BACKEND_DIR%\pdfs"
+
 echo.
-echo ========================================
-echo  Server đang chạy...
-echo  API: http://localhost:5000/docs
-echo  Press Ctrl+C để dừng
-echo ========================================
+echo [START] Backend API: http://localhost:5000
+echo [START] API docs:    http://localhost:5000/docs
+echo [INFO] Press Ctrl+C to stop.
 echo.
 
-python main.py
+cd /d "%BACKEND_DIR%"
+"%PYTHON_EXE%" main.py
 
+echo.
+echo [INFO] Backend stopped.
 pause
