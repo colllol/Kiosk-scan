@@ -56,9 +56,10 @@ class ImageList {
         if (emptyMessage) emptyMessage.remove();
 
         const div = document.createElement('div');
-        div.className = 'image-item';
+        div.className = this.getItemClassName(imageModel);
         div.dataset.id = imageModel.id;
         div.dataset.index = index;
+        div.dataset.uploadStatus = imageModel.uploadStatus || 'idle';
 
         // Optimized HTML (no extra spaces)
         div.innerHTML = `<img src="${imageModel.url}" alt="Ảnh ${index + 1}" loading="lazy" decoding="async"><button class="delete-btn" data-id="${imageModel.id}"><i class="fas fa-times"></i></button><span class="image-number">${index + 1}</span>`;
@@ -88,6 +89,27 @@ class ImageList {
         });
 
         this.elements.imageList.appendChild(div);
+    }
+
+    update(imageModel) {
+        const item = this.elements.imageList.querySelector(`[data-id="${imageModel.id}"]`);
+        if (!item) return;
+
+        const img = item.querySelector('img');
+        if (img && img.src !== imageModel.url) {
+            img.src = imageModel.url;
+        }
+        item.className = this.getItemClassName(imageModel);
+        item.dataset.uploadStatus = imageModel.uploadStatus || 'idle';
+    }
+
+    getItemClassName(imageModel) {
+        const classes = ['image-item'];
+        if (imageModel.processing) classes.push('is-processing');
+        if (imageModel.uploadStatus === 'uploading') classes.push('is-uploading');
+        if (imageModel.uploadStatus === 'uploaded') classes.push('is-uploaded');
+        if (imageModel.processingError || imageModel.uploadStatus === 'failed') classes.push('has-error');
+        return classes.join(' ');
     }
 
     delete(id) {

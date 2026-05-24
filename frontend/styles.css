@@ -101,6 +101,35 @@
     border-radius: 9999px;
 }
 
+.image-item.is-processing::after,
+.image-item.is-uploading::after {
+    content: "";
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-top-color: #47d7ac;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    z-index: 9;
+}
+
+.image-item.is-uploaded {
+    box-shadow: inset 0 0 0 2px rgba(71, 215, 172, 0.45);
+}
+
+.image-item.has-error {
+    box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.65);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* Sortable Ghost */
 .sortable-ghost {
     opacity: 0.4;

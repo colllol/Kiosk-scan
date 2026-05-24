@@ -3,6 +3,8 @@ const MODEL_URLS = [
     'http://localhost:5000/api/model/document.onnx',
 ];
 const INPUT_SIZE = 640;
+const LIVE_DETECTION_MAX_DIM = 1280;
+const LIVE_DETECTION_INTERVAL_MS = 180;
 const IOU_THRESHOLD = 0.45;
 const SCORE_THRESHOLD = 0.55;
 const MIN_DOCUMENT_AREA_RATIO = 0.01;
@@ -33,6 +35,8 @@ class DocumentScanner {
         this.liveRunning = false;
         this.liveBusy = false;
         this.liveFrameId = 0;
+        this.lastLiveDetection = null;
+        this.lastLiveDetectAt = 0;
     }
 
     init() {
@@ -95,15 +99,40 @@ class DocumentScanner {
         return this.session;
     }
 
-    async cropCanvas(inputCanvas) {
+    async cropCanvas(inputCanvas, detection = null) {
         await this.init();
         this.frameCanvas.width = inputCanvas.width;
         this.frameCanvas.height = inputCanvas.height;
         this.frameCtx.drawImage(inputCanvas, 0, 0);
 
-        const detection = await this.detectDocument();
-        if (!detection) return null;
-        return this.cropAndDeskew(detection.box, detection.corners);
+        const cropDetection = detection
+            || this.getLastLiveDetectionForCanvas(inputCanvas.width, inputCanvas.height)
+            || await this.detectDocument();
+        if (!cropDetection) return null;
+        return this.cropAndDeskew(cropDetection.box, cropDetection.corners);
+    }
+
+    getLastLiveDetectionForCanvas(targetWidth, targetHeight) {
+        if (!this.lastLiveDetection || !this.liveVideo?.videoWidth || !this.liveVideo?.videoHeight) {
+            return null;
+        }
+
+        const sourceWidth = this.liveVideo.videoWidth;
+        const transformPoint = (point) => ({
+            x: clamp(point.y, 0, targetWidth),
+            y: clamp(sourceWidth - point.x, 0, targetHeight),
+        });
+
+        const corners = this.lastLiveDetection.corners
+            ? this.lastLiveDetection.corners.map(transformPoint)
+            : boxToPoints(this.lastLiveDetection.box).map(transformPoint);
+        const orderedCorners = orderPoints(corners);
+        return {
+            ...this.lastLiveDetection,
+            box: pointsToBox(orderedCorners, targetWidth, targetHeight),
+            corners: orderedCorners,
+            source: `${this.lastLiveDetection.source}-cached`,
+        };
     }
 
     startLiveDetection(video, overlay, statusEl = null) {
@@ -120,6 +149,7 @@ class DocumentScanner {
         this.liveRunning = false;
         if (this.liveFrameId) window.cancelAnimationFrame(this.liveFrameId);
         this.liveFrameId = 0;
+        this.lastLiveDetection = null;
         this.clearOverlay();
     }
 
@@ -127,13 +157,25 @@ class DocumentScanner {
         if (!this.liveRunning) return;
 
         const video = this.liveVideo;
-        if (!this.liveBusy && video?.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+        const now = performance.now();
+        if (
+            !this.liveBusy
+            && now - this.lastLiveDetectAt >= LIVE_DETECTION_INTERVAL_MS
+            && video?.readyState >= 2
+            && video.videoWidth > 0
+            && video.videoHeight > 0
+        ) {
             this.liveBusy = true;
+            this.lastLiveDetectAt = now;
             try {
-                this.frameCanvas.width = video.videoWidth;
-                this.frameCanvas.height = video.videoHeight;
+                const scale = Math.min(1, LIVE_DETECTION_MAX_DIM / Math.max(video.videoWidth, video.videoHeight));
+                this.frameCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+                this.frameCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
                 this.frameCtx.drawImage(video, 0, 0, this.frameCanvas.width, this.frameCanvas.height);
                 const detection = await this.detectDocument();
+                this.lastLiveDetection = detection
+                    ? scaleDetection(detection, video.videoWidth / this.frameCanvas.width, video.videoHeight / this.frameCanvas.height)
+                    : null;
                 this.drawOverlay(detection);
             } catch (error) {
                 console.warn('[DocumentScanner] live detection failed:', error);
@@ -399,15 +441,26 @@ class DocumentScanner {
         }
 
         const normalized = normalizeOrientation(output);
+        const enhanced = enhanceCroppedDocument(normalized);
         const canvas = document.createElement('canvas');
-        window.cv.imshow(canvas, normalized);
+        window.cv.imshow(canvas, enhanced);
 
         src.delete();
         if (roi) roi.delete();
         output.delete();
         normalized.delete();
+        enhanced.delete();
         return canvas;
     }
+}
+
+function enhanceCroppedDocument(mat) {
+    const blurred = new window.cv.Mat();
+    const enhanced = new window.cv.Mat();
+    window.cv.GaussianBlur(mat, blurred, new window.cv.Size(0, 0), 1.0);
+    window.cv.addWeighted(mat, 1.18, blurred, -0.18, 4, enhanced);
+    blurred.delete();
+    return enhanced;
 }
 
 function findDocumentCorners(mat) {
@@ -488,6 +541,31 @@ function boxToPoints(box) {
         { x: box.x + box.w, y: box.y + box.h },
         { x: box.x, y: box.y + box.h },
     ];
+}
+
+function pointsToBox(points, maxW, maxH) {
+    const xs = points.map((point) => point.x);
+    const ys = points.map((point) => point.y);
+    const x = clamp(Math.min(...xs), 0, maxW);
+    const y = clamp(Math.min(...ys), 0, maxH);
+    const right = clamp(Math.max(...xs), 0, maxW);
+    const bottom = clamp(Math.max(...ys), 0, maxH);
+    return { x, y, w: right - x, h: bottom - y };
+}
+
+function scaleDetection(detection, scaleX, scaleY) {
+    const scalePoint = (point) => ({ x: point.x * scaleX, y: point.y * scaleY });
+    return {
+        ...detection,
+        box: {
+            ...detection.box,
+            x: detection.box.x * scaleX,
+            y: detection.box.y * scaleY,
+            w: detection.box.w * scaleX,
+            h: detection.box.h * scaleY,
+        },
+        corners: detection.corners ? detection.corners.map(scalePoint) : null,
+    };
 }
 
 function drawPointPath(ctx, points) {

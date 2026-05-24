@@ -8,8 +8,9 @@ class Api {
         this.imageStore = imageStore;
         this.elements = elements;
         this.documentIds = [];
-        // OPTIMIZATION 3: Tăng parallel uploads từ 5 → 10 để tận dụng bandwidth
-        this.MAX_PARALLEL_UPLOADS = 10;
+        this.MAX_PARALLEL_UPLOADS = CONFIG.MAX_PARALLEL_UPLOADS;
+        this.backgroundQueue = [];
+        this.backgroundActive = 0;
     }
 
     /**
@@ -49,9 +50,23 @@ class Api {
     }
 
     async uploadImage(imageModel) {
+        await imageModel.readyPromise;
+        if (imageModel.processingError) {
+            throw new Error('Image is not ready for upload');
+        }
+        if (imageModel.uploadId) {
+            return imageModel.uploadId;
+        }
+        if (imageModel.uploadPromise) {
+            return imageModel.uploadPromise;
+        }
+
+        return this.enqueueUpload(imageModel);
+    }
+
+    async performUpload(imageModel) {
         const formData = new FormData();
-        // Gửi PNG lossless thay vì JPEG để giữ chất lượng 100%
-        formData.append('file', imageModel.blob, `img_${Date.now()}.png`);
+        formData.append('file', imageModel.blob, `img_${Date.now()}.jpg`);
 
         try {
             const response = await fetch(CONFIG.API_UPLOAD, {
@@ -72,6 +87,77 @@ class Api {
         }
     }
 
+    enqueueUpload(imageModel) {
+        if (!imageModel || imageModel.uploadId) {
+            return Promise.resolve(imageModel?.uploadId || null);
+        }
+        if (imageModel.uploadPromise) {
+            return imageModel.uploadPromise;
+        }
+
+        imageModel.uploadStatus = 'queued';
+        window.App?.imageList?.update(imageModel);
+
+        imageModel.uploadPromise = new Promise((resolve, reject) => {
+            this.backgroundQueue.push({ imageModel, resolve, reject });
+            this.processUploadQueue();
+        });
+
+        return imageModel.uploadPromise;
+    }
+
+    processUploadQueue() {
+        while (this.backgroundActive < this.MAX_PARALLEL_UPLOADS && this.backgroundQueue.length > 0) {
+            const job = this.backgroundQueue.shift();
+            this.backgroundActive += 1;
+            this.runUploadJob(job).finally(() => {
+                this.backgroundActive -= 1;
+                this.processUploadQueue();
+            });
+        }
+    }
+
+    async runUploadJob({ imageModel, resolve, reject }) {
+        try {
+            await imageModel.readyPromise;
+
+            if (!this.imageStore.get(imageModel.id)) {
+                imageModel.uploadPromise = null;
+                resolve(null);
+                return;
+            }
+            if (imageModel.processingError) {
+                throw new Error('Image processing failed');
+            }
+            if (imageModel.uploadId) {
+                resolve(imageModel.uploadId);
+                return;
+            }
+
+            imageModel.uploadStatus = 'uploading';
+            window.App?.imageList?.update(imageModel);
+            const id = await this.performUpload(imageModel);
+            imageModel.uploadId = id;
+            imageModel.uploadStatus = 'uploaded';
+            imageModel.uploadPromise = Promise.resolve(id);
+            this.syncDocumentIds();
+            window.App?.imageList?.update(imageModel);
+            resolve(id);
+        } catch (error) {
+            imageModel.uploadStatus = 'failed';
+            imageModel.uploadPromise = null;
+            window.App?.imageList?.update(imageModel);
+            reject(error);
+        }
+    }
+
+    syncDocumentIds() {
+        this.documentIds = this.imageStore
+            .getAll()
+            .map((image) => image.uploadId)
+            .filter(Boolean);
+    }
+
     async uploadAllImages() {
         if (this.imageStore.count === 0 && !document.getElementById('service-select').value === '#') {
             window.App?.toast?.show('Vui lòng chụp ít nhất 1 ảnh', 'error');
@@ -84,7 +170,7 @@ class Api {
         try {
             const images = this.imageStore.getAll();
 
-            // PARALLEL upload (5 at a time)
+            // Parallel upload with a small queue to avoid saturating the kiosk/backend.
             const ids = await this.uploadParallel(images);
 
             this.documentIds = ids;
@@ -163,7 +249,9 @@ class Api {
 
         if (state.isLoading) return;
 
-        if (this.documentIds.length !== this.imageStore.count) {
+        this.syncDocumentIds();
+        const allImagesUploaded = this.imageStore.getAll().every((image) => image.uploadId);
+        if (!allImagesUploaded) {
             const ids = await this.uploadAllImages();
             if (ids.length === 0) return;
         }

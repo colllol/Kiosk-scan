@@ -525,13 +525,9 @@ async def upload_image(file: UploadFile = File(...)):
         }
         # --- Copy ảnh sang staging để train worker xử lý ---
         _stage_image_for_training(file_path)
-        with open(file_path, "rb") as f:
-            import base64
-            preview = base64.b64encode(f.read()).decode('utf-8')
         return {
             "id": image_id,
             "message": "Upload thành công",
-            "preview": f"data:image/{file_extension};base64,{preview}"
         }
     except Exception as e:
         print(f"Upload error: {e}")

@@ -1,0 +1,331 @@
+PHẦN TỐI ƯU HÓA SCAN TÀI LIỆU TRÊN KIOSK ĐƯỢC THAM KHẢO TỪ Ý KIẾN CỦA CHATGPT.
+
+
+Có cách để nhanh hơn 2–3 lần mà vẫn giữ chữ sắc nét: không nên giảm toàn bộ camera xuống thấp. Thay vào đó phải tách pipeline thành 2 luồng:
+
+Luồng 1: nhận diện realtime nhanh
+Dùng ảnh nhỏ, ví dụ 960–1280px, chạy 2–3 FPS để tìm vùng tài liệu.
+
+Luồng 2: chụp ảnh chất lượng cao
+Khi người dùng bấm chụp, lấy frame lớn hơn, crop theo tọa độ đã detect, sau đó nén JPEG/WebP chất lượng cao hoặc PNG chỉ cho ảnh đã crop.
+
+Hiện tại nhánh fix-kiosk đang lấy camera 4K 3840x2160, realtime detect liên tục bằng requestAnimationFrame, dùng OpenCV/ONNX trên canvas lớn, sau đó lưu PNG và upload song song 10 ảnh. Đây là lý do chậm.
+
+Hướng tối ưu tốt nhất cho scan tài liệu
+1. Giữ camera 4K, nhưng realtime detection chỉ dùng ảnh nhỏ
+
+Không cần detect tài liệu bằng frame 4K. Với detect khung giấy, ảnh 960–1280px là đủ. Khi bấm chụp mới dùng ảnh lớn để lấy chữ nét.
+
+Sửa trong DocumentScanner.js, phần liveLoop().
+
+Hiện tại đang làm:
+
+this.frameCanvas.width = video.videoWidth;
+this.frameCanvas.height = video.videoHeight;
+this.frameCtx.drawImage(video, 0, 0, this.frameCanvas.width, this.frameCanvas.height);
+const detection = await this.detectDocument();
+
+Nên đổi thành:
+
+const DETECT_MAX_WIDTH = 1280;
+
+const scale = Math.min(1, DETECT_MAX_WIDTH / video.videoWidth);
+
+this.frameCanvas.width = Math.round(video.videoWidth * scale);
+this.frameCanvas.height = Math.round(video.videoHeight * scale);
+
+this.frameCtx.drawImage(
+    video,
+    0,
+    0,
+    this.frameCanvas.width,
+    this.frameCanvas.height
+);
+
+const detection = await this.detectDocument();
+
+if (detection) {
+    this.lastDetection = {
+        ...detection,
+        scaleToOriginal: 1 / scale
+    };
+}
+
+Khi crop ảnh chụp thật, nhân tọa độ lên lại:
+
+const scaleBack = detection.scaleToOriginal || 1;
+
+const highResBox = {
+    x: detection.box.x * scaleBack,
+    y: detection.box.y * scaleBack,
+    w: detection.box.w * scaleBack,
+    h: detection.box.h * scaleBack,
+    score: detection.box.score
+};
+
+Cách này thường tăng tốc realtime rất mạnh, vì thay vì xử lý 3840x2160, chỉ xử lý khoảng 1280x720.
+
+2. Giới hạn detect xuống 2–3 FPS
+
+Bạn không cần detect 60 lần/giây. Người dùng chỉ cần thấy khung tài liệu cập nhật mượt vừa đủ.
+
+Thêm vào constructor của DocumentScanner:
+
+this.lastDetectTime = 0;
+this.detectIntervalMs = 350; // khoảng 3 FPS
+
+Sửa liveLoop():
+
+async liveLoop() {
+    if (!this.liveRunning) return;
+
+    const now = performance.now();
+    const video = this.liveVideo;
+
+    const shouldDetect =
+        now - this.lastDetectTime >= this.detectIntervalMs &&
+        !this.liveBusy &&
+        video?.readyState >= 2 &&
+        video.videoWidth > 0 &&
+        video.videoHeight > 0;
+
+    if (shouldDetect) {
+        this.lastDetectTime = now;
+        this.liveBusy = true;
+
+        try {
+            const DETECT_MAX_WIDTH = 1280;
+            const scale = Math.min(1, DETECT_MAX_WIDTH / video.videoWidth);
+
+            this.frameCanvas.width = Math.round(video.videoWidth * scale);
+            this.frameCanvas.height = Math.round(video.videoHeight * scale);
+
+            this.frameCtx.drawImage(
+                video,
+                0,
+                0,
+                this.frameCanvas.width,
+                this.frameCanvas.height
+            );
+
+            const detection = await this.detectDocument();
+
+            if (detection) {
+                this.lastDetection = {
+                    ...detection,
+                    detectScale: scale
+                };
+            }
+
+            this.drawOverlay(detection);
+        } catch (error) {
+            console.warn('[DocumentScanner] live detection failed:', error);
+            this.clearOverlay();
+            this.setStatus('Nhan dien tai lieu bi loi.');
+        } finally {
+            this.liveBusy = false;
+        }
+    }
+
+    this.liveFrameId = window.requestAnimationFrame(() => this.liveLoop());
+}
+
+Đây là thay đổi quan trọng nhất để nhanh hơn.
+
+3. Khi bấm chụp, dùng lại detection cuối cùng, không detect lại từ đầu
+
+Hiện tại Capture.js gọi:
+
+const cropped = await this.documentScanner.cropCanvas(this.canvas);
+
+Trong cropCanvas(), scanner lại detect thêm lần nữa.
+
+Nên sửa cropCanvas() trong DocumentScanner.js thành:
+
+async cropCanvas(inputCanvas) {
+    await this.init();
+
+    this.frameCanvas.width = inputCanvas.width;
+    this.frameCanvas.height = inputCanvas.height;
+    this.frameCtx.drawImage(inputCanvas, 0, 0);
+
+    let detection = null;
+
+    if (this.lastDetection?.box) {
+        const scaleBack = 1 / (this.lastDetection.detectScale || 1);
+
+        detection = {
+            ...this.lastDetection,
+            box: {
+                x: this.lastDetection.box.x * scaleBack,
+                y: this.lastDetection.box.y * scaleBack,
+                w: this.lastDetection.box.w * scaleBack,
+                h: this.lastDetection.box.h * scaleBack,
+                score: this.lastDetection.box.score
+            },
+            corners: this.lastDetection.corners
+                ? this.lastDetection.corners.map(p => ({
+                    x: p.x * scaleBack,
+                    y: p.y * scaleBack
+                }))
+                : null
+        };
+    } else {
+        detection = await this.detectDocument();
+    }
+
+    if (!detection) return null;
+
+    return this.cropAndDeskew(detection.box, detection.corners);
+}
+
+Như vậy lúc chụp sẽ nhanh hơn vì đã có vùng tài liệu từ realtime.
+
+4. Đừng lưu full-frame PNG, chỉ lưu ảnh đã crop
+
+Hiện tại Capture.js đang lưu PNG:
+
+sourceCanvas.toBlob(resolve, 'image/png')
+
+PNG rất nét nhưng encode chậm và file lớn. Với scan tài liệu, bạn có 2 lựa chọn:
+
+Cách nhanh nhất nhưng vẫn nét: JPEG quality 0.92–0.95.
+
+const blob = await new Promise(resolve =>
+    sourceCanvas.toBlob(resolve, 'image/jpeg', 0.94)
+);
+
+Cách nét hơn cho chữ nhỏ: WebP quality 0.95.
+
+const blob = await new Promise(resolve =>
+    sourceCanvas.toBlob(resolve, 'image/webp', 0.95)
+);
+
+Nếu backend chưa nhận WebP thì dùng JPEG. JPEG 0.94 trên ảnh đã crop thường nhẹ hơn PNG rất nhiều nhưng chữ vẫn rõ.
+
+Sửa Api.js tương ứng:
+
+formData.append('file', imageModel.blob, `img_${Date.now()}.jpg`);
+
+Thay vì:
+
+formData.append('file', imageModel.blob, `img_${Date.now()}.png`);
+5. Tăng nét bằng xử lý nhẹ sau crop, không xử lý toàn frame
+
+Không nên sharpen toàn bộ ảnh 4K trước khi crop. Hãy crop xong rồi mới tăng nét ảnh tài liệu.
+
+Thêm hàm nhẹ trong Capture.js:
+
+enhanceForText(canvas) {
+    const ctx = canvas.getContext('2d', {
+        alpha: false,
+        willReadFrequently: true
+    });
+
+    ctx.filter = 'contrast(1.18) brightness(1.05) saturate(0.95)';
+    ctx.drawImage(canvas, 0, 0);
+
+    return canvas;
+}
+
+Trong capture():
+
+if (cropped) {
+    outputCanvas = this.enhanceForText(cropped);
+}
+
+Cách này nhẹ hơn nhiều so với xử lý pixel từng điểm ảnh trên full-frame.
+
+6. Upload song song chỉ nên để 2–3
+
+Hiện tại đang để:
+
+this.MAX_PARALLEL_UPLOADS = 10;
+
+Với ảnh scan chất lượng cao, nên đổi:
+
+this.MAX_PARALLEL_UPLOADS = 2;
+
+hoặc:
+
+this.MAX_PARALLEL_UPLOADS = 3;
+
+Upload 10 ảnh cùng lúc không làm nhanh hơn trong kiosk localhost; nó thường làm nghẽn backend, disk I/O và QWebEngineView.
+
+7. Backend không nên trả base64 preview
+
+Trong backend /api/upload, bạn đang đọc lại ảnh rồi trả base64 preview. Frontend chỉ cần id, nên bỏ phần này.
+
+Sửa thành:
+
+return {
+    "id": image_id,
+    "message": "Upload thành công"
+}
+
+Việc này giúp giảm response size rất nhiều, nhất là khi ảnh lớn.
+
+Cấu hình đề xuất để đạt nhanh hơn 2–3 lần
+Nếu ưu tiên nét chữ cao
+
+Camera:
+
+width: { ideal: 2560 },
+height: { ideal: 1440 },
+frameRate: { ideal: 10, max: 15 }
+
+Realtime detect:
+
+DETECT_MAX_WIDTH = 960 hoặc 1280
+detectIntervalMs = 350
+
+Lưu ảnh:
+
+'image/jpeg', 0.94
+
+Upload song song:
+
+MAX_PARALLEL_UPLOADS = 2
+Nếu ưu tiên cực nét cho chữ nhỏ
+
+Camera vẫn có thể để:
+
+width: { ideal: 3840 },
+height: { ideal: 2160 }
+
+Nhưng bắt buộc:
+
+DETECT_MAX_WIDTH = 960
+detectIntervalMs = 500
+
+Và khi chụp chỉ crop vùng tài liệu, không lưu full frame.
+
+Công thức tối ưu đúng cho scan tài liệu
+
+Không nên làm:
+
+4K video -> detect realtime full 4K -> crop -> PNG -> upload 10 luồng
+
+Nên làm:
+
+4K/2K video
+   -> realtime detect ảnh nhỏ 960/1280px, 2–3 FPS
+   -> cache vùng tài liệu
+   -> khi chụp: lấy frame lớn
+   -> crop theo vùng đã cache
+   -> enhance nhẹ sau crop
+   -> JPEG/WebP chất lượng cao
+   -> upload 2 luồng
+
+Cách này giữ được chữ nét vì ảnh cuối vẫn lấy từ frame lớn, nhưng nhanh hơn vì realtime detection không còn xử lý full 4K.
+
+Việc nên làm trước tiên
+
+Bạn chỉ cần sửa 4 điểm này trước là có thể thấy nhanh hơn rõ:
+
+Trong DocumentScanner.liveLoop(): giới hạn detect 2–3 FPS.
+Trong DocumentScanner.liveLoop(): resize frame detect xuống 960 hoặc 1280.
+Trong Capture.saveImage(): đổi PNG sang JPEG 0.94.
+Trong Api.js: giảm MAX_PARALLEL_UPLOADS từ 10 xuống 2.
+
+Đây là combo có khả năng giúp nhanh hơn 2–3 lần mà vẫn giữ chữ rõ.

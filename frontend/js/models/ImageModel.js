@@ -4,12 +4,24 @@
 
 class ImageModel {
     constructor(blob, width, height) {
-        this.id = Date.now();
+        this.id = ImageModel.nextId();
         this.blob = blob;
         this.url = URL.createObjectURL(blob);
         this.width = width;
         this.height = height;
         this.timestamp = new Date().toISOString();
+        this.isFinal = true;
+        this.processing = false;
+        this.processingError = null;
+        this.uploadStatus = 'idle';
+        this.uploadId = null;
+        this.uploadPromise = null;
+        this.readyPromise = Promise.resolve(this);
+    }
+
+    static nextId() {
+        ImageModel.lastId = Math.max(ImageModel.lastId + 1, Date.now());
+        return ImageModel.lastId;
     }
 
     static fromData(data) {
@@ -24,6 +36,15 @@ class ImageModel {
             URL.revokeObjectURL(this.url);
             this.url = null;
         }
+    }
+
+    updateBlob(blob, width, height) {
+        this.revokeUrl();
+        this.blob = blob;
+        this.url = URL.createObjectURL(blob);
+        this.width = width;
+        this.height = height;
+        this.timestamp = new Date().toISOString();
     }
 
 async rotate(degrees = -90) {
@@ -64,6 +85,8 @@ async rotate(degrees = -90) {
         };
     }
 }
+
+ImageModel.lastId = 0;
 
 // Image Store - manages the collection of images
 class ImageStore {

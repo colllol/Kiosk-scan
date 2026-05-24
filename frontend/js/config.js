@@ -8,7 +8,7 @@ const CONFIG = {
     VIRTUAL_SCROLL_THRESHOLD: 50,
     API_UPLOAD: 'http://localhost:5000/api/upload',
     API_EXPORT: 'http://localhost:5000/api/export',
-    MAX_PARALLEL_UPLOADS: 5,
+    MAX_PARALLEL_UPLOADS: 3,
     
     // Image enhancement settings for preview
     PREVIEW_BRIGHTNESS: 20,   // +20 brightness for preview
