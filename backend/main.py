@@ -43,10 +43,13 @@ else:
 # ==================== Train Worker Trigger ====================
 STAGING_DIR = os.path.join(SCRIPT_DIR, "train_staging")
 os.makedirs(STAGING_DIR, exist_ok=True)
+ENABLE_TRAIN_STAGING = os.environ.get("ENABLE_TRAIN_STAGING", "0").lower() in ("1", "true", "yes")
 
 def _stage_image_for_training(image_path: str):
     """Copy ảnh mới upload sang staging dir để train worker xử lý."""
     import shutil
+    if not ENABLE_TRAIN_STAGING:
+        return
     try:
         basename = os.path.basename(image_path)
         dst = os.path.join(STAGING_DIR, basename)
@@ -415,10 +418,13 @@ def create_pdf_from_images(image_paths, output_path, enable_rotation=False, enab
         print(f"[PDF] Step 1 - Opened {len(pil_images)} images in {time.time() - step_start:.3f}s")
 
         step_start = time.time()
-        processed_images = image_processor.rotate_pil_images_batch(
-            pil_images,
-            enable_rotation=enable_rotation,
-        )
+        if enable_rotation:
+            processed_images = image_processor.rotate_pil_images_batch(
+                pil_images,
+                enable_rotation=enable_rotation,
+            )
+        else:
+            processed_images = pil_images
         print(f"[PDF] Step 2 - Batch processed images in {time.time() - step_start:.3f}s")
 
         # Đảm bảo không có ảnh nào None
@@ -436,13 +442,16 @@ def create_pdf_from_images(image_paths, output_path, enable_rotation=False, enab
 
         step_start = time.time()
         for idx, processed_img in enumerate(processed_images):
-            if processed_img.mode != 'RGB':
-                processed_img = processed_img.convert('RGB')
             img_width, img_height = processed_img.size
-            temp_jpg = io.BytesIO()
-            processed_img.save(temp_jpg, format='JPEG', quality=98, optimize=True)
-            temp_jpg.seek(0)
-            img_reader = ImageReader(temp_jpg)
+            if enable_rotation:
+                if processed_img.mode != 'RGB':
+                    processed_img = processed_img.convert('RGB')
+                temp_jpg = io.BytesIO()
+                processed_img.save(temp_jpg, format='JPEG', quality=94, optimize=False)
+                temp_jpg.seek(0)
+                img_reader = ImageReader(temp_jpg)
+            else:
+                img_reader = ImageReader(image_paths[idx])
             c.drawImage(img_reader, 0, 0, width=img_width, height=img_height, preserveAspectRatio=False)
             if idx < len(processed_images) - 1:
                 next_img = processed_images[idx + 1]
@@ -554,7 +563,7 @@ async def export_pdf(request: ExportRequest, background_tasks: BackgroundTasks):
         pdf_path = os.path.join(PDF_DIR_ABS, pdf_filename)
 
         # Frontend already detects and crops documents. Backend only rotates with OpenCV and creates the PDF.
-        success = create_pdf_from_images(image_paths, pdf_path, enable_rotation=True, enable_bg_removal=False)
+        success = create_pdf_from_images(image_paths, pdf_path, enable_rotation=False, enable_bg_removal=False)
         if not success:
             raise HTTPException(status_code=500, detail="Lỗi khi tạo PDF")
         print(f"PDF created: {pdf_path}")

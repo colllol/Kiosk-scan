@@ -1,10 +1,12 @@
+import { CONFIG } from '../config.js';
+
 const MODEL_URLS = [
     '/best.onnx',
     'http://localhost:5000/api/model/document.onnx',
 ];
 const INPUT_SIZE = 640;
-const LIVE_DETECTION_MAX_DIM = 1280;
-const LIVE_DETECTION_INTERVAL_MS = 180;
+const LIVE_DETECTION_MAX_DIM = CONFIG.ACTIVE_SCAN_PROFILE.detectionMaxDim;
+const LIVE_DETECTION_INTERVAL_MS = CONFIG.ACTIVE_SCAN_PROFILE.detectionIntervalMs;
 const IOU_THRESHOLD = 0.45;
 const SCORE_THRESHOLD = 0.55;
 const MIN_DOCUMENT_AREA_RATIO = 0.01;
@@ -101,15 +103,121 @@ class DocumentScanner {
 
     async cropCanvas(inputCanvas, detection = null) {
         await this.init();
+
+        const cachedDetection = detection
+            || this.getLastLiveDetectionForCanvas(inputCanvas.width, inputCanvas.height);
+
+        if (cachedDetection) {
+            if (cachedDetection.roiPrepared) {
+                this.frameCanvas.width = inputCanvas.width;
+                this.frameCanvas.height = inputCanvas.height;
+                this.frameCtx.drawImage(inputCanvas, 0, 0);
+                return this.cropAndDeskew(cachedDetection.box, cachedDetection.corners);
+            }
+            return this.cropDetectedRegion(inputCanvas, cachedDetection);
+        }
+
         this.frameCanvas.width = inputCanvas.width;
         this.frameCanvas.height = inputCanvas.height;
         this.frameCtx.drawImage(inputCanvas, 0, 0);
-
-        const cropDetection = detection
-            || this.getLastLiveDetectionForCanvas(inputCanvas.width, inputCanvas.height)
-            || await this.detectDocument();
+        const cropDetection = await this.detectDocument();
         if (!cropDetection) return null;
         return this.cropAndDeskew(cropDetection.box, cropDetection.corners);
+    }
+
+    prepareCropInput(inputCanvas, detection) {
+        const corners = detection.corners?.length
+            ? detection.corners
+            : boxToPoints(detection.box);
+        const roi = expandPlainRect(
+            pointsToBox(corners, inputCanvas.width, inputCanvas.height),
+            CONFIG.ACTIVE_SCAN_PROFILE.cropRoiPadding,
+            inputCanvas.width,
+            inputCanvas.height,
+        );
+
+        const canvas = document.createElement('canvas');
+        canvas.width = roi.w;
+        canvas.height = roi.h;
+        canvas.getContext('2d', { alpha: false }).drawImage(inputCanvas, roi.x, roi.y, roi.w, roi.h, 0, 0, roi.w, roi.h);
+
+        const localCorners = corners.map((point) => ({
+            x: point.x - roi.x,
+            y: point.y - roi.y,
+        }));
+        const localBox = pointsToBox(localCorners, roi.w, roi.h);
+
+        return {
+            canvas,
+            detection: {
+                ...detection,
+                box: localBox,
+                corners: localCorners,
+                roiPrepared: true,
+            },
+        };
+    }
+
+    prepareCropInputFromRotatedVideo(video, targetWidth, targetHeight, detection) {
+        const corners = detection.corners?.length
+            ? detection.corners
+            : boxToPoints(detection.box);
+        const roi = expandPlainRect(
+            pointsToBox(corners, targetWidth, targetHeight),
+            CONFIG.ACTIVE_SCAN_PROFILE.cropRoiPadding,
+            targetWidth,
+            targetHeight,
+        );
+
+        const canvas = document.createElement('canvas');
+        canvas.width = roi.w;
+        canvas.height = roi.h;
+        const ctx = canvas.getContext('2d', { alpha: false });
+        ctx.save();
+        ctx.translate(-roi.x, -roi.y);
+        ctx.translate(targetWidth / 2, targetHeight / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.drawImage(video, -video.videoWidth / 2, -video.videoHeight / 2, video.videoWidth, video.videoHeight);
+        ctx.restore();
+
+        const localCorners = corners.map((point) => ({
+            x: point.x - roi.x,
+            y: point.y - roi.y,
+        }));
+        const localBox = pointsToBox(localCorners, roi.w, roi.h);
+
+        return {
+            canvas,
+            detection: {
+                ...detection,
+                box: localBox,
+                corners: localCorners,
+                roiPrepared: true,
+            },
+        };
+    }
+
+    cropDetectedRegion(inputCanvas, detection) {
+        const corners = detection.corners?.length
+            ? detection.corners
+            : boxToPoints(detection.box);
+        const roi = expandPlainRect(
+            pointsToBox(corners, inputCanvas.width, inputCanvas.height),
+            CONFIG.ACTIVE_SCAN_PROFILE.cropRoiPadding,
+            inputCanvas.width,
+            inputCanvas.height,
+        );
+
+        this.frameCanvas.width = roi.w;
+        this.frameCanvas.height = roi.h;
+        this.frameCtx.drawImage(inputCanvas, roi.x, roi.y, roi.w, roi.h, 0, 0, roi.w, roi.h);
+
+        const localCorners = corners.map((point) => ({
+            x: point.x - roi.x,
+            y: point.y - roi.y,
+        }));
+        const localBox = pointsToBox(localCorners, roi.w, roi.h);
+        return this.cropAndDeskew(localBox, localCorners);
     }
 
     getLastLiveDetectionForCanvas(targetWidth, targetHeight) {
@@ -698,6 +806,16 @@ function expandRect(box, amount, maxW, maxH) {
     const w = Math.min(maxW - x, Math.floor(box.w + padX * 2));
     const h = Math.min(maxH - y, Math.floor(box.h + padY * 2));
     return new window.cv.Rect(x, y, w, h);
+}
+
+function expandPlainRect(box, amount, maxW, maxH) {
+    const padX = box.w * amount;
+    const padY = box.h * amount;
+    const x = Math.max(0, Math.floor(box.x - padX));
+    const y = Math.max(0, Math.floor(box.y - padY));
+    const right = Math.min(maxW, Math.ceil(box.x + box.w + padX));
+    const bottom = Math.min(maxH, Math.ceil(box.y + box.h + padY));
+    return { x, y, w: Math.max(1, right - x), h: Math.max(1, bottom - y) };
 }
 
 function nms(boxes) {

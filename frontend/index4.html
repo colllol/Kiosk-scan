@@ -36,7 +36,8 @@
             min-height: 0;
         }
 
-        .guide-image {
+        .guide-image,
+        .guide-video {
             width: 100%;
             height: auto;
             max-height: calc(100vh - 230px);
@@ -73,7 +74,10 @@
     <h2 style="text-align: center; color: #08b9e6; font-size: 32px;">Vui lòng cắm thẻ căn cước trước khi thực hiện các bước ở trong hình.
     </h2>
     <main class="guide-page">
-        <img class="guide-image" src="1.png" alt="Huong dan cong dan su dung kiosk chung thuc">
+        <video class="guide-video" src="1.mp4" autoplay muted loop playsinline controls>
+            Trinh duyet cua ban khong ho tro hien thi video.
+        </video>
+        <!-- <img class="guide-image" src="1.png" alt="Huong dan cong dan su dung kiosk chung thuc"> -->
             <button class="btn-navigate" id="btnNavigate" type="button" onclick="navigateToScan()" >Tiếp tục</button>
     </main>
 

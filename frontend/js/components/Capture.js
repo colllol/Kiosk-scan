@@ -1,6 +1,6 @@
 // Capture.js
 import { ImageModel } from '../models/ImageModel.js';
-import { state } from '../config.js';
+import { CONFIG, state } from '../config.js';
 
 class Capture {
     constructor(elements, imageStore, documentScanner = null) {
@@ -37,34 +37,28 @@ class Capture {
         const outputWidth = videoHeight;
         const outputHeight = videoWidth;
 
-        if (this.cachedWidth !== outputWidth || this.cachedHeight !== outputHeight) {
-            this.canvas.width = outputWidth;
-            this.canvas.height = outputHeight;
-            this.cachedWidth = outputWidth;
-            this.cachedHeight = outputHeight;
-        }
-
-        this.ctx.save();
-        this.ctx.translate(outputWidth / 2, outputHeight / 2);
-        this.ctx.rotate(-Math.PI / 2);
-        this.ctx.drawImage(video, -videoWidth / 2, -videoHeight / 2, videoWidth, videoHeight);
-        this.ctx.restore();
-
         if (!this.documentScanner) {
             window.App?.toast?.show('Bo phat hien tai lieu chua san sang', 'error');
             return;
         }
 
         const cachedDetection = this.documentScanner.getLastLiveDetectionForCanvas(
-            this.canvas.width,
-            this.canvas.height,
+            outputWidth,
+            outputHeight,
         );
         if (!cachedDetection) {
             window.App?.toast?.show('Chua phat hien tai lieu, vui long dua tai lieu vao khung', 'error');
             return;
         }
 
-        const frameCanvas = this.cloneCanvas(this.canvas);
+        const preparedCrop = this.documentScanner.prepareCropInputFromRotatedVideo(
+            video,
+            outputWidth,
+            outputHeight,
+            cachedDetection,
+        );
+        const frameCanvas = preparedCrop.canvas;
+        const cropDetection = preparedCrop.detection;
         const previewCanvas = this.createPreviewCanvas(frameCanvas);
         const previewBlob = await this.canvasToBlob(previewCanvas, 'image/jpeg', 0.72);
         const imageModel = new ImageModel(previewBlob, previewCanvas.width, previewCanvas.height);
@@ -75,7 +69,7 @@ class Capture {
         this.batchUpdateUI(imageModel);
         window.App?.toast?.show('Da chup anh', 'success');
 
-        imageModel.readyPromise = this.processFinalImage(frameCanvas, cachedDetection, imageModel);
+        imageModel.readyPromise = this.processFinalImage(frameCanvas, cropDetection, imageModel);
     }
 
     async processFinalImage(frameCanvas, cachedDetection, imageModel) {
@@ -86,9 +80,11 @@ class Capture {
                 throw new Error('Cannot crop document');
             }
 
-            const outputCanvas = this.enhanceForText(cropped);
-            const blob = await this.canvasToBlob(outputCanvas, 'image/jpeg', 0.95);
-            imageModel.updateBlob(blob, outputCanvas.width, outputCanvas.height);
+            const resized = this.resizeCanvasToLongSide(cropped, CONFIG.ACTIVE_SCAN_PROFILE.outputMaxLongSide);
+            const outputCanvas = this.enhanceForText(resized);
+            const thumbnailBlob = await this.createThumbnailBlob(outputCanvas);
+            const blob = await this.canvasToBlob(outputCanvas, 'image/jpeg', CONFIG.ACTIVE_SCAN_PROFILE.jpegQuality);
+            imageModel.updateBlob(blob, outputCanvas.width, outputCanvas.height, thumbnailBlob);
             imageModel.isFinal = true;
             imageModel.processing = false;
             imageModel.processingError = null;
@@ -109,17 +105,28 @@ class Capture {
         }
     }
 
-    cloneCanvas(sourceCanvas) {
-        const canvas = document.createElement('canvas');
-        canvas.width = sourceCanvas.width;
-        canvas.height = sourceCanvas.height;
-        canvas.getContext('2d', { alpha: false }).drawImage(sourceCanvas, 0, 0);
-        return canvas;
-    }
-
     createPreviewCanvas(sourceCanvas) {
         const maxPreviewWidth = 420;
         const scale = Math.min(1, maxPreviewWidth / sourceCanvas.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(sourceCanvas.width * scale));
+        canvas.height = Math.max(1, Math.round(sourceCanvas.height * scale));
+        canvas.getContext('2d', { alpha: false }).drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+        return canvas;
+    }
+
+    async createThumbnailBlob(sourceCanvas) {
+        const thumbnailCanvas = this.createPreviewCanvas(sourceCanvas);
+        return this.canvasToBlob(thumbnailCanvas, 'image/jpeg', 0.74);
+    }
+
+    resizeCanvasToLongSide(sourceCanvas, maxLongSide) {
+        const currentLongSide = Math.max(sourceCanvas.width, sourceCanvas.height);
+        if (!maxLongSide || currentLongSide <= maxLongSide) {
+            return sourceCanvas;
+        }
+
+        const scale = maxLongSide / currentLongSide;
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(sourceCanvas.width * scale));
         canvas.height = Math.max(1, Math.round(sourceCanvas.height * scale));
@@ -148,8 +155,9 @@ class Capture {
     }
 
     async saveImage(sourceCanvas) {
-        const blob = await this.canvasToBlob(sourceCanvas, 'image/jpeg', 0.95);
+        const blob = await this.canvasToBlob(sourceCanvas, 'image/jpeg', CONFIG.ACTIVE_SCAN_PROFILE.jpegQuality);
         const imageModel = new ImageModel(blob, sourceCanvas.width, sourceCanvas.height);
+        imageModel.updateThumbnail(await this.createThumbnailBlob(sourceCanvas));
         this.imageStore.add(imageModel);
         this.batchUpdateUI(imageModel);
         window.App?.toast?.show('Đã chụp ảnh', 'success');

@@ -7,6 +7,8 @@ class ImageModel {
         this.id = ImageModel.nextId();
         this.blob = blob;
         this.url = URL.createObjectURL(blob);
+        this.thumbnailBlob = blob;
+        this.thumbnailUrl = this.url;
         this.width = width;
         this.height = height;
         this.timestamp = new Date().toISOString();
@@ -32,19 +34,45 @@ class ImageModel {
     }
 
     revokeUrl() {
+        const fullUrl = this.url;
         if (this.url) {
             URL.revokeObjectURL(this.url);
             this.url = null;
         }
+        if (this.thumbnailUrl && this.thumbnailUrl !== fullUrl) {
+            URL.revokeObjectURL(this.thumbnailUrl);
+        }
+        this.thumbnailUrl = null;
+        this.thumbnailBlob = null;
     }
 
-    updateBlob(blob, width, height) {
-        this.revokeUrl();
+    updateThumbnail(blob) {
+        if (this.thumbnailUrl && this.thumbnailUrl !== this.url) {
+            URL.revokeObjectURL(this.thumbnailUrl);
+        }
+        this.thumbnailBlob = blob;
+        this.thumbnailUrl = URL.createObjectURL(blob);
+    }
+
+    updateBlob(blob, width, height, thumbnailBlob = null) {
+        const previousUrl = this.url;
+        const previousThumbnailUrl = this.thumbnailUrl;
         this.blob = blob;
         this.url = URL.createObjectURL(blob);
         this.width = width;
         this.height = height;
         this.timestamp = new Date().toISOString();
+
+        if (thumbnailBlob) {
+            this.updateThumbnail(thumbnailBlob);
+        } else if (this.thumbnailUrl === previousUrl) {
+            this.thumbnailBlob = blob;
+            this.thumbnailUrl = this.url;
+        }
+
+        if (previousUrl && previousUrl !== previousThumbnailUrl && previousUrl !== this.thumbnailUrl) {
+            URL.revokeObjectURL(previousUrl);
+        }
     }
 
 async rotate(degrees = -90) {

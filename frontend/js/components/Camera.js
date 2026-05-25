@@ -1,7 +1,7 @@
 /**
 Camera Component - Handles camera initialization and management
 */
-import { state } from '../config.js';
+import { CONFIG, state } from '../config.js';
 
 class Camera {
     constructor(elements) {
@@ -12,11 +12,13 @@ class Camera {
 
     async init() {
         try {
+            const profile = CONFIG.ACTIVE_SCAN_PROFILE;
             const constraints = {
                 video: {
                     facingMode: { ideal: 'environment' },
-                    width: { ideal: 3840 },
-                    height: { ideal: 2160 },
+                    width: { ideal: profile.cameraWidth },
+                    height: { ideal: profile.cameraHeight },
+                    frameRate: { ideal: profile.cameraFrameRate, max: Math.max(10, profile.cameraFrameRate + 3) },
                     // Request the widest practical camera frame.
                     // advanced: [
                     //     { focusMode: 'continuous' },

@@ -61,20 +61,17 @@ class ImageList {
         div.dataset.index = index;
         div.dataset.uploadStatus = imageModel.uploadStatus || 'idle';
 
-        // Optimized HTML (no extra spaces)
-        div.innerHTML = `<img src="${imageModel.url}" alt="Ảnh ${index + 1}" loading="lazy" decoding="async"><button class="delete-btn" data-id="${imageModel.id}"><i class="fas fa-times"></i></button><span class="image-number">${index + 1}</span>`;
+        // Use a small thumbnail in the list. The full image URL stays on the model for upload/lightbox.
+        const imageUrl = this.getListImageUrl(imageModel);
+        div.innerHTML = `<img src="${imageUrl}" alt="Image ${index + 1}" loading="lazy" decoding="async"><button class="delete-btn" data-id="${imageModel.id}"><i class="fas fa-times"></i></button><span class="image-number">${index + 1}</span>`;
 
         // Click handler - open lightbox (dùng event delegation để tránh conflict với SortableJS)
         div.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             if (!e.target.closest('.delete-btn')) {
-                console.log('[ImageList] Click on image, index:', index);
-                console.log('[ImageList] window.App:', window.App);
-                console.log('[ImageList] window.App.lightbox:', window.App?.lightbox);
                 const app = window.App;
                 if (app && app.lightbox) {
-                    console.log('[ImageList] Opening lightbox at index:', index);
                     app.lightbox.open(index);
                 } else {
                     console.error('[ImageList] Cannot open lightbox - app or lightbox not found');
@@ -96,11 +93,16 @@ class ImageList {
         if (!item) return;
 
         const img = item.querySelector('img');
-        if (img && img.src !== imageModel.url) {
-            img.src = imageModel.url;
+        const imageUrl = this.getListImageUrl(imageModel);
+        if (img && img.src !== imageUrl) {
+            img.src = imageUrl;
         }
         item.className = this.getItemClassName(imageModel);
         item.dataset.uploadStatus = imageModel.uploadStatus || 'idle';
+    }
+
+    getListImageUrl(imageModel) {
+        return imageModel.thumbnailUrl || imageModel.url;
     }
 
     getItemClassName(imageModel) {
