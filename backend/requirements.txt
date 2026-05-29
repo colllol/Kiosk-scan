@@ -1,13 +1,18 @@
 fastapi
 uvicorn[standard]
+pydantic
 python-multipart
+
 Pillow
 reportlab
 numpy
 opencv-python
 requests
+
 python-escpos
-pywin32
+pywin32; platform_system == "Windows"
+
 ultralytics
+onnxruntime
 pytesseract
 rembg[cpu]

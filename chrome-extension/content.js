@@ -103,7 +103,7 @@
       // First try to fetch from API and cache, then fill
       (async () => {
         let data = request.data;
-        if (!data || (!data.data && !data.cardObj && !data.identityNumber)) {
+        if (!FORM_FILLER.hasUsableData(data)) {
           data = await FORM_FILLER.fetchDataFromAPI();
         }
         if (data) {

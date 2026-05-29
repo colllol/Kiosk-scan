@@ -16,6 +16,7 @@
 
   // State
   let folderName = '';
+  const API_URL = 'http://localhost:5431/';
 
   // Initialize DOM elements
   function initDOMElements() {
@@ -199,9 +200,6 @@
     // Fetch data from API and fill form
     if (btnFetch) {
       btnFetch.addEventListener('click', async () => {
-        // const apiUrl = 'http://localhost:5431';
-        // const apiUrl = 'http://localhost:3000';
-
         btnFetch.disabled = true;
         btnFetch.textContent = '⏳ Đang lấy dữ liệu từ API...';
         showStatus(fetchStatus, '', '');
@@ -217,8 +215,9 @@
             return;
           }
 
-          const apiResponse = await fetch(apiUrl, {
+          const apiResponse = await fetch(API_URL, {
             method: 'GET',
+            cache: 'no-store',
             headers: { 'Accept': 'application/json' }
           });
 
@@ -301,7 +300,7 @@
     // Clear button
     if (btnClear) {
       btnClear.addEventListener('click', async () => {
-        apiUrlInput.value = '';
+        if (apiUrlInput) apiUrlInput.value = '';
         jsonDataTextarea.value = '';
         chrome.storage.local.remove(['autoFillData', 'folderSet', 'folderName']);
         fetchStatus.className = 'status';

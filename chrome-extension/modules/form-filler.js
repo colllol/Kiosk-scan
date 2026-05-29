@@ -9,6 +9,44 @@ const FORM_FILLER = (function() {
   // State
   let lastFormData = null;
   let apiDataCache = null;
+  const API_URL = 'http://localhost:5431/';
+
+  function firstValue(...values) {
+    return values.find(value => value !== undefined && value !== null && value !== '');
+  }
+
+  function extractFields(data) {
+    if (data?.data?.cardObj) return data.data.cardObj;
+    if (data?.cardObj) return data.cardObj;
+    return data || {};
+  }
+
+  function normalizeApiData(data) {
+    const fields = extractFields(data);
+    if (!fields || typeof fields !== 'object') return {};
+
+    return {
+      ...fields,
+      identityNumber: firstValue(fields.identityNumber, fields.id_number, fields.cmnd, fields.so_dinh_danh),
+      fullName: firstValue(fields.fullName, fields.applicant_name, fields.ten_nguoi_nop, fields.ho_ten),
+      dateOfBirth: firstValue(fields.dateOfBirth, fields.birth_date, fields.ngay_sinh),
+      placeOfResidence: firstValue(fields.placeOfResidence, fields.address, fields.address_detail, fields.dia_chi, fields.dia_chi_chi_tiet),
+      dateOfIssue: firstValue(fields.dateOfIssue, fields.issue_date, fields.ngay_cap),
+      placeOfIssue: firstValue(fields.placeOfIssue, fields.issue_place, fields.noi_cap)
+    };
+  }
+
+  function hasUsableData(data) {
+    const fields = normalizeApiData(data);
+    return Boolean(
+      fields.identityNumber ||
+      fields.fullName ||
+      fields.dateOfBirth ||
+      fields.placeOfResidence ||
+      fields.dateOfIssue ||
+      fields.placeOfIssue
+    );
+  }
 
   /**
    * Tìm field bằng label text
@@ -163,22 +201,36 @@ const FORM_FILLER = (function() {
    * Lấy dữ liệu từ API
    * @returns {Promise<Object|null>} Dữ liệu API
    */
-  // async function fetchDataFromAPI() {
-  //   if (apiDataCache) return apiDataCache;
-  //   // const API_URL = 'http://localhost:5431';
-  //   // const API_URL = 'http://localhost:3000';
-  //   try {
-  //     const response = await fetch(API_URL, { method: 'GET', headers: { 'Accept': 'application/json' } });
-  //     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  //     const data = await response.json();
-  //     apiDataCache = data;
-  //     console.log('[FormFiller] API data fetched and cached');
-  //     return data;
-  //   } catch (error) {
-  //     console.log('[FormFiller] API fetch failed:', error.message);
-  //     return null;
-  //   }
-  // }
+  async function fetchDataFromAPI() {
+    if (apiDataCache) return apiDataCache;
+
+    try {
+      let data = null;
+
+      if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+        const result = await chrome.runtime.sendMessage({ action: 'fetchApiData', url: API_URL });
+        if (!result?.success) {
+          throw new Error(result?.error || 'Background API fetch failed');
+        }
+        data = result.data;
+      } else {
+        const response = await fetch(API_URL, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        data = await response.json();
+      }
+
+      apiDataCache = data;
+      console.log('[FormFiller] API data fetched and cached from', API_URL);
+      return data;
+    } catch (error) {
+      console.log('[FormFiller] API fetch failed:', error.message);
+      return null;
+    }
+  }
 
   /**
    * Điền form chính
@@ -212,11 +264,7 @@ const FORM_FILLER = (function() {
     }
 
     // Trích xuất fields
-    let fieldsToFill = {};
-    if (data?.data?.cardObj) fieldsToFill = data.data.cardObj;
-    else if (data?.cardObj) fieldsToFill = data.cardObj;
-    else if (data?.identityNumber) fieldsToFill = data;
-    else fieldsToFill = data || {};
+    let fieldsToFill = normalizeApiData(data);
 
     // Xử lý đặc biệt
     if (!fieldsToFill.placeOfBirth && fieldsToFill.placeOfOrigin) fieldsToFill.placeOfBirth = fieldsToFill.placeOfOrigin;
@@ -347,8 +395,9 @@ const FORM_FILLER = (function() {
     findFieldByLabelText,
     fillField,
     handleMatSelect,
-    // fetchDataFromAPI,
+    fetchDataFromAPI,
     fillForm,
+    hasUsableData,
     
     // Getters/Setters
     getLastFormData,

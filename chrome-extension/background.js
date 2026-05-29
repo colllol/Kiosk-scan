@@ -83,6 +83,30 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  if (request.action === 'fetchApiData') {
+    (async () => {
+      try {
+        const apiUrl = request.url || 'http://localhost:5431/';
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        sendResponse({ success: true, data });
+      } catch (e) {
+        console.error('[BG] API fetch error:', e);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
   if (request.action === 'uploadCompleted') {
     console.log('[BG] Upload completed:', request.success);
     sendResponse({ success: true });
