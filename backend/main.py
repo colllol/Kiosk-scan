@@ -140,6 +140,9 @@ class PrintTicketRequest(BaseModel):
     filename: Optional[str] = None
     serviceName: Optional[str] = None
 
+class DeletePdfRequest(BaseModel):
+    filename: str
+
 # ========== STT Prefix Mapping ==========
 # Mỗi serviceId có dải STT riêng theo yêu cầu từ service.txt
 # serviceId → prefix (STT = prefix*1000 + số thứ tự)
@@ -351,28 +354,38 @@ def send_ticket_to_api(stt: int, serviceId: int = 1, counterId: int = 1, pdf_fil
         traceback.print_exc()
         return False
 
-def cleanup_uploads_and_pdfs():
-    """Xóa toàn bộ ảnh trong uploads/ và file PDF trong pdfs/ sau khi in xong.
-    File *_listpdfs.txt được giữ lại để không mất lịch sử số thứ tự."""
-    import glob
+def delete_pdf_file(pdf_filename: str):
+    """Xóa đúng file PDF được yêu cầu trong thư mục pdfs/."""
+    safe_filename = os.path.basename(pdf_filename or "")
+    if not safe_filename.lower().endswith(".pdf"):
+        raise ValueError("Tên file PDF không hợp lệ")
+
+    pdf_path = os.path.abspath(os.path.join(PDF_DIR_ABS, safe_filename))
+    pdf_dir = os.path.abspath(PDF_DIR_ABS)
+    if os.path.dirname(pdf_path) != pdf_dir:
+        raise ValueError("Đường dẫn PDF không hợp lệ")
+
+    if not os.path.exists(pdf_path):
+        print(f"[CLEANUP] PDF not found, skip delete: {pdf_path}")
+        return False
+
+    os.remove(pdf_path)
+    print(f"[CLEANUP] Deleted PDF: {pdf_path}")
+    return True
+
+def cleanup_upload_images():
+    """Xóa ảnh tạm trong uploads/ và reset registry ảnh đã upload."""
     cleaned = 0
-    # Xóa ảnh uploads
-    for ext in ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tiff"):
-        for f in glob.glob(os.path.join(UPLOAD_DIR_ABS, ext)):
+    for img_id, img_data in list(uploaded_images.items()):
+        path = img_data.get("path")
+        if path and os.path.exists(path):
             try:
-                os.remove(f)
+                os.remove(path)
                 cleaned += 1
             except Exception as e:
-                print(f"[CLEANUP] Failed to delete {f}: {e}")
-    # Xóa PDF (giữ nguyên file *_listpdfs.txt)
-    for ext in ("*.pdf",):
-        for f in glob.glob(os.path.join(PDF_DIR_ABS, ext)):
-            try:
-                os.remove(f)
-                cleaned += 1
-            except Exception as e:
-                print(f"[CLEANUP] Failed to delete {f}: {e}")
-    print(f"[CLEANUP] Đã xóa {cleaned} file trong uploads/ và pdfs/ (giữ nguyên *_listpdfs.txt)")
+                print(f"[CLEANUP] Failed to delete upload {path}: {e}")
+    uploaded_images.clear()
+    return cleaned
 
 
 def run_print_ticket(stt: int, dt: Optional[datetime], service_name: str = "HỘ TỊCH - CHỨNG THỰC"):
@@ -383,14 +396,10 @@ def run_print_ticket(stt: int, dt: Optional[datetime], service_name: str = "HỘ
         print(f"[PRINT] Calling print function with STT={stt}, serviceName={service_name}")
         print_ticket(stt, dt, service_name)
         print(f"[PRINT] Print job completed successfully")
-        # --- Tự động xóa ảnh và PDF sau khi in xong ---
-        cleanup_uploads_and_pdfs()
     except Exception as e:
         print(f"[PRINT] Exception: {e}")
         import traceback
         traceback.print_exc()
-        # Vẫn xóa dù in lỗi
-        cleanup_uploads_and_pdfs()
 
 def get_or_create_listpdfs(pdf_filename):
     pdf_date = extract_date_from_filename(pdf_filename)
@@ -682,6 +691,38 @@ async def print_ticket_endpoint(request: PrintTicketRequest):
         print(f"[PRINT API] Error: {e}")
         raise HTTPException(status_code=500, detail=f"Lỗi in ticket: {str(e)}")
 
+@app.post("/api/delete-pdf")
+async def delete_pdf_endpoint(request: DeletePdfRequest):
+    try:
+        deleted = delete_pdf_file(request.filename)
+        return {
+            "success": True,
+            "deleted": deleted,
+            "filename": os.path.basename(request.filename)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"[CLEANUP API] Error deleting PDF: {e}")
+        raise HTTPException(status_code=500, detail=f"Lỗi xóa PDF: {str(e)}")
+
+@app.post("/api/cleanup-after-print")
+async def cleanup_after_print_endpoint(request: DeletePdfRequest):
+    try:
+        deleted_pdf = delete_pdf_file(request.filename)
+        deleted_uploads = cleanup_upload_images()
+        return {
+            "success": True,
+            "deletedPdf": deleted_pdf,
+            "deletedUploads": deleted_uploads,
+            "filename": os.path.basename(request.filename)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"[CLEANUP API] Error cleaning after print: {e}")
+        raise HTTPException(status_code=500, detail=f"Lỗi dọn dẹp sau in: {str(e)}")
+
 @app.get("/api/images")
 async def list_images():
     return {
@@ -692,10 +733,7 @@ async def list_images():
 @app.delete("/api/clear")
 async def clear_images():
     try:
-        for img_id, img_data in uploaded_images.items():
-            if os.path.exists(img_data["path"]):
-                os.remove(img_data["path"])
-        uploaded_images.clear()
+        cleanup_upload_images()
         return {"message": "Đã xóa tất cả ảnh"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi xóa: {str(e)}")

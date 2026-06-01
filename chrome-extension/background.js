@@ -267,6 +267,27 @@ async function processTicketForUrl(url, tabId) {
       console.log('[BG] ✅ Print triggered successfully');
     }
 
+    // Step 4: Delete the PDF and uploaded images only after the extension has sent the print command
+    if (filename) {
+      console.log('[BG] Step 4: Cleaning PDF and uploads from backend:', filename);
+      try {
+        const deleteResponse = await fetch(`${BACKEND_API}/api/cleanup-after-print`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+
+        if (!deleteResponse.ok) {
+          const deleteError = await deleteResponse.text();
+          console.error('[BG] Cleanup API error:', deleteResponse.status, deleteError);
+        } else {
+          console.log('[BG] Cleanup requested successfully');
+        }
+      } catch (deleteError) {
+        console.error('[BG] Cleanup request failed:', deleteError.name, deleteError.message);
+      }
+    }
+
     // Show notification to user
     chrome.notifications?.create({
       type: 'basic',
